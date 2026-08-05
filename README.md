@@ -1,3 +1,12 @@
+# ⚠️ Legacy repository
+
+> Replaced by [DongsooJung/stargateedu-shop](https://github.com/DongsooJung/stargateedu-shop).  
+> Do not edit or deploy this repository as the current shop. Production: [shop.stargateedu.co.kr](https://shop.stargateedu.co.kr/)
+
+The content below is retained for historical reference.
+
+---
+
 # STARGATE 쇼핑몰
 
 stargateshop.co.kr 정적 사이트 (GitHub Pages 호스팅).
