@@ -47,5 +47,15 @@ test("public pages do not advertise unsellable prices or an unconfirmed opening 
     const html = readFileSync(new URL(name, root), "utf8");
     for (const phrase of banned) assert.equal(html.includes(phrase), false, `${name} still contains ${phrase}`);
   }
-  assert.equal(readFileSync(new URL("index.html", root), "utf8").includes("250,000원"), true);
+  const index = readFileSync(new URL("index.html", root), "utf8");
+  assert.equal(index.includes("250,000원"), true);
+  assert.equal(index.includes("일정 확정 전"), true);
+  for (const phrase of ["play.google.com", "기출 아카이브", "AI 수학 채점"]) {
+    assert.equal(index.includes(phrase), false, `index.html still contains ${phrase}`);
+  }
+  const start = readFileSync(new URL("start.html", root), "utf8");
+  assert.equal(start.includes('elementary:"초등 고학년"'), true);
+  const consult = readFileSync(new URL("consult.html", root), "utf8");
+  assert.equal(consult.includes('encodeURIComponent("STARGATE EDU · "+goalLabel)'), true);
+  assert.equal(consult.includes('data.get("goal")'), false);
 });

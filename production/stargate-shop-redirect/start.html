@@ -37,7 +37,10 @@ form.addEventListener("submit",function(event){
   var query=new URLSearchParams({grade:grade,experience:experience,goal:goal,shelf:key});
   document.getElementById("resultCta").href="/consult.html?"+query.toString();
   document.getElementById("resultCta").textContent="이 답으로 상담 내용 만들기";
-  var summary="학년="+grade+", 경험="+experience+", 목표="+goal+", 안내="+pick.title;
+  var gradeLabel={elementary:"초등 고학년",middle:"중학생",high:"고등학생 이상"};
+  var expLabel={none:"처음 시작",basic:"기초 문법 가능",advanced:"알고리즘 풀이 경험 있음"};
+  var goalLabel={explore:"알고리즘 입문",competition:"KOI·경시 준비",plan:"입시·학습 전략"};
+  var summary="학년="+(gradeLabel[grade]||grade)+", 경험="+(expLabel[experience]||experience)+", 목표="+(goalLabel[goal]||goal)+", 안내="+pick.title;
   document.getElementById("consultCta").href="mailto:support@stargateedu.co.kr?subject="+encodeURIComponent("진단 세 가지 답")+"&body="+encodeURIComponent("진단 결과: "+summary+"\n\n이 메일은 결제가 아닙니다.\n이름:\n연락처:\n남기고 싶은 말:");
   result.classList.add("show");
   result.scrollIntoView({behavior:"smooth",block:"center"});
