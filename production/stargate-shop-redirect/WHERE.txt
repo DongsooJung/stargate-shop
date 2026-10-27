@@ -1,0 +1,4 @@
+이 폴더의 파일은 shop.stargateedu.co.kr 운영 저장소 DongsooJung/stargate-shop-redirect에 넣을 내용입니다.
+이 저장소의 index.html과 CNAME은 그 사이트가 아니므로 바꾸지 않습니다.
+같은 내용의 패치는 상위 폴더의 stargate-shop-redirect.patch 입니다.
+운영 저장소에는 이 실행의 토큰으로 push할 수 없었습니다.

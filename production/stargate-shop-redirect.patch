@@ -1,0 +1,915 @@
+diff --git a/PAYMENT_SETUP.md b/PAYMENT_SETUP.md
+index f50dc0c..b8d5374 100644
+--- a/PAYMENT_SETUP.md
++++ b/PAYMENT_SETUP.md
+@@ -1,5 +1,17 @@
+ # 결제 연동 운영 문서
+ 
++## 지금 상태 · 2026-10-27
++
++어떤 SKU도 결제창을 열지 않습니다. `catalog.js`의 `commerce.payableSkus`는 빈 배열이고, `ebookFileConfirmed`는 false입니다.
++
++- 25개 알고리즘 가이드(`SGE-EBOOK-KOI-25`)는 판매용 PDF가 확인되기 전에는 가격과 결제 링크를 만들지 않습니다. 샘플 문제를 그 상품으로 팔지 않습니다.
++- 실시간 수업은 대상, 총액, 정원, 환불이 확정되기 전에 개강일을 적지 않습니다.
++- 문제은행과 월간 모의고사는 구독 금액 없이 판매 전입니다. 2026년에 받는 것은 진단의 세 가지 답뿐입니다.
++- 금액이 페이지에 남는 안내는 90분 전략 상담 250,000원이며, 메일 문의는 결제가 아닙니다.
++- 전자책 결제 하나만 다시 열 때는 판매용 PDF 확인 후 `ebookFileConfirmed`를 true로 바꾸고, `payableSkus`와 `payment-config.js`의 `products`에 그 SKU만 넣습니다.
++
++아래 문단 중 상품별 결제창을 연다는 설명은 그 조건 이후의 연결 방법입니다. 조건 전에는 따르지 않습니다.
++
+ ## 대표 결제 번호
+ 
+ - 대표 전화: 070-8027-8225
+diff --git a/catalog.js b/catalog.js
+index 2762a80..a09643f 100644
+--- a/catalog.js
++++ b/catalog.js
+@@ -21,22 +21,22 @@
+       }
+     },
+     availability: {
+-        "ebook-koi-25": "request",
+-        "course-koi-advanced": "consultation",
+-        "course-algorithm-bundle": "request",
+-        "course-kmo-number-combination": "consultation",
+-        "course-koi-intro": "consultation",
+-        "subscription-bank-monthly": "consultation",
+-        "subscription-mock-monthly": "consultation",
++        "ebook-koi-25": "file_unconfirmed",
++        "course-koi-advanced": "withheld",
++        "course-algorithm-bundle": "withheld",
++        "course-kmo-number-combination": "withheld",
++        "course-koi-intro": "withheld",
++        "subscription-bank-monthly": "withheld",
++        "subscription-mock-monthly": "withheld",
+         "book-koi-intro": "external",
+         "book-algorithm-vol1": "external",
+         "book-koi-past": "external",
+-        "ebook-algorithm-set": "request",
++        "ebook-algorithm-set": "withheld",
+         "book-kmo-number-combination": "planned",
+-        "live-vacation": "consultation",
+-        "live-koi-final": "consultation",
+-        "consult-strategy": "consultation",
+-        "mentoring-monthly": "consultation"
++        "live-vacation": "withheld",
++        "live-koi-final": "withheld",
++        "consult-strategy": "consult",
++        "mentoring-monthly": "withheld"
+     },
+     products: {
+       "ebook-koi-25": product("SGE-EBOOK-KOI-25", "digital_book", "KOI 수상자의 25개 핵심 알고리즘 가이드", 30000, "핵심 알고리즘 25개와 권장 학습 순서를 정리한 ISBN 등록 PDF 전자책", ["25개 핵심 알고리즘", "주제별 학습 순서", "알고리즘 학습 가이드"], ["course-koi-intro", "consult-strategy"]),
+@@ -62,6 +62,22 @@
+ 
+   };
+ 
++  // 결제 버튼은 판매용 PDF가 확인된 전자책 SKU만 payableSkus에 넣은 뒤에 연다.
++  // ebookFileConfirmed가 false이면 30,000원 결제 링크를 만들지 않는다.
++  const saleBySku = {
++    "SGE-EBOOK-KOI-25": "closed-file",
++    "SGE-CONSULT-STRATEGY-90": "consult"
++  };
++  for (const item of Object.values(window.STARGATE_CATALOG.products)) {
++    item.sale = saleBySku[item.sku] || "withheld";
++  }
++  window.STARGATE_CATALOG.commerce = {
++    ebookFileConfirmed: false,
++    ebookSku: "SGE-EBOOK-KOI-25",
++    payableSkus: [],
++    publicPriceSkus: ["SGE-CONSULT-STRATEGY-90"]
++  };
++
+   window.STARGATE_CATALOG.i18n = {
+     en: {
+       "ebook-koi-25": { name: "25 Essential Algorithms by a KOI Award Winner", summary: "An ISBN-registered PDF guide to 25 essential algorithms and a recommended learning sequence.", contents: ["25 essential algorithms", "Topic-by-topic learning order", "Algorithm study guide"] },
+diff --git a/checkout.html b/checkout.html
+index 69b2d2b..8860518 100644
+--- a/checkout.html
++++ b/checkout.html
+@@ -8,7 +8,18 @@ const q=new URLSearchParams(location.search),sku=q.get("sku"),lang=q.get("lang")
+ const c=en?{back:"← Return to products",missing:"Product not found",retry:"Please select the product again.",list:"View products",included:"What’s included",related:"Related courses & books",buyer:"Buyer information",buyerNote:"Used only to confirm and fulfil this order. Card details are entered on TossPayments.",name:"Full name",email:"Email",phone:"Mobile number",terms:"[Required] I agree to the Terms and Refund Policy.",privacy:"[Required] I agree to the collection and use of my name, email and mobile number for order fulfilment.",pay:"Pay securely with TossPayments",paypal:"Pay securely with PayPal",emailOrder:"Request order by email",fallback:"Online payment is unavailable for this product. An email request does not create a charge.",keyMissing:"TossPayments is not configured yet. An email request does not create a charge.",physical:"Shipping-address checkout is being prepared. Please order by email.",subscription:"Recurring billing is being prepared. Please order by email.",errName:"Enter your name.",errEmail:"Enter a valid email address.",errPhone:"Enter a valid mobile number.",errAgree:"Accept both required agreements.",support:"Other questions",trust:"TossPayments processes card details directly. Stargate Edu does not store them.",payPortone:"Pay by card",portoneTrust:"Card details are entered on the payment provider window opened by PortOne. Stargate Edu does not store them.",testMode:"TEST MODE — this is a test payment through PortOne and no real charge is made.",cancelled:"Payment was cancelled.",month:"month",year:"year"}:{back:"← 상품으로 돌아가기",missing:"상품을 찾을 수 없습니다",retry:"상품 목록에서 다시 선택해 주세요.",list:"상품 목록 보기",included:"포함 콘텐츠",related:"연결된 강의·교재",buyer:"구매자 정보",buyerNote:"주문 확인과 상품 제공에만 사용합니다. 카드 정보는 토스페이먼츠 화면에서 입력합니다.",name:"이름",email:"이메일",phone:"휴대폰 번호",terms:"[필수] 이용약관 및 환불정책에 동의합니다.",privacy:"[필수] 주문 처리를 위한 이름·이메일·휴대폰 번호 수집·이용에 동의합니다.",pay:"토스페이먼츠로 결제하기",paypal:"PayPal로 안전하게 결제",emailOrder:"이메일로 주문 신청",fallback:"이 상품은 온라인 결제를 준비 중입니다. 이메일 신청만으로 결제나 청구가 발생하지 않습니다.",keyMissing:"온라인 결제를 준비 중입니다. 이메일로 주문하시면 제공 가능 여부와 결제·전달 방법을 안내합니다. 신청만으로 결제나 청구가 발생하지 않습니다.",physical:"배송주소를 받는 결제를 준비 중입니다. 현재는 이메일로 주문해 주세요.",subscription:"정기결제 빌링 연동을 준비 중입니다. 현재는 이메일로 신청해 주세요.",errName:"이름을 입력해 주세요.",errEmail:"올바른 이메일 주소를 입력해 주세요.",errPhone:"휴대폰 번호를 정확히 입력해 주세요.",errAgree:"필수 동의 두 항목을 확인해 주세요.",support:"별도 문의하기",trust:"카드 정보는 토스페이먼츠가 직접 처리하며 Stargate Edu는 저장하지 않습니다.",payPortone:"카드로 결제하기",portoneTrust:"카드 정보는 PortOne(포트원)이 호출하는 결제대행사 결제창에서 직접 입력하며 Stargate Edu는 저장하지 않습니다.",testMode:"테스트 결제 모드 — PortOne 테스트 채널로 진행되며 실제 청구되지 않습니다.",cancelled:"결제가 취소되었습니다.",month:"월",year:"년"};
+ document.documentElement.lang=lang;document.title=(en?"Order request":"주문 신청")+" · Stargate Edu Shop";document.getElementById("home-link").href=shop;document.getElementById("back-link").href=shop;document.getElementById("back-link").textContent=c.back;
+ if(!entry){root.innerHTML=`<h1>${c.missing}</h1><p class="summary">${c.retry}</p><a class="pay" href="${shop}">${c.list}</a>`;return}
+-const[id,source]=entry,tr=catalog.i18n?.[lang]||{},item={...source,...(tr[id]||{})},money=new Intl.NumberFormat(en?"en-US":"ko-KR",{style:"currency",currency:catalog.currency||"KRW",maximumFractionDigits:0}),related=(item.related||[]).map(rid=>{const s=catalog.products[rid];if(!s)return"";const r={...s,...(tr[rid]||{})};return`<a href="${shop}#${rid}">${r.name}</a>`}).join(""),subject=encodeURIComponent(`[${item.sku}] ${item.name} ${en?"order request":"주문 신청"}`),body=en?`Product: ${item.name}\nSKU: ${item.sku}\nPrice: KRW ${item.amount}\n\nName:\nMobile:\nQuestions:`:`상품명: ${item.name}\nSKU: ${item.sku}\n표시 금액: ${new Intl.NumberFormat("ko-KR").format(item.amount)}원\n\n신청자 이름:\n휴대폰 번호:\n문의사항:`,mail=`mailto:${encodeURIComponent(paypal.supportEmail||"support@stargateedu.co.kr")}?subject=${subject}&body=${encodeURIComponent(body)}`,serverId=toss.products?.[item.sku]||"",keyReady=typeof toss.clientKey==="string"&&toss.clientKey.trim()&&typeof TossPayments==="function",portoneReady=typeof portone.storeId==="string"&&/^store-[0-9a-f-]{36}$/.test(portone.storeId.trim())&&typeof portone.channelKey==="string"&&portone.channelKey.trim().startsWith("channel-key-")&&typeof window.PortOne==="object"&&typeof window.PortOne.requestPayment==="function",portoneTest=portone.mode!=="live";let paypalUrl="";try{const u=new URL(paypal.links?.[item.sku]);if(u.protocol==="https:")paypalUrl=u.href}catch(_){}let action="email",notice=c.fallback;if(serverId){if(paypalUrl)action="paypal";else if(portoneReady)action="portone";else if(keyReady)action="toss";else notice=c.keyMissing}else if(paypalUrl)action="paypal";else if(item.type==="physical_book")notice=c.physical;else if(item.interval)notice=c.subscription;
++const[id,source]=entry,tr=catalog.i18n?.[lang]||{},item={...source,...(tr[id]||{})},money=new Intl.NumberFormat(en?"en-US":"ko-KR",{style:"currency",currency:catalog.currency||"KRW",maximumFractionDigits:0}),related=(item.related||[]).map(rid=>{const s=catalog.products[rid];if(!s)return"";const r={...s,...(tr[rid]||{})};return`<a href="${shop}#${rid}">${r.name}</a>`}).join(""),subject=encodeURIComponent(`[${item.sku}] ${item.name} ${en?"order request":"주문 신청"}`),body=en?`Product: ${item.name}\nSKU: ${item.sku}\nPrice: KRW ${item.amount}\n\nName:\nMobile:\nQuestions:`:`상품명: ${item.name}\nSKU: ${item.sku}\n표시 금액: ${new Intl.NumberFormat("ko-KR").format(item.amount)}원\n\n신청자 이름:\n휴대폰 번호:\n문의사항:`,mail=`mailto:${encodeURIComponent(paypal.supportEmail||"support@stargateedu.co.kr")}?subject=${subject}&body=${encodeURIComponent(body)}`,serverId=toss.products?.[item.sku]||"",keyReady=typeof toss.clientKey==="string"&&toss.clientKey.trim()&&typeof TossPayments==="function",portoneReady=typeof portone.storeId==="string"&&/^store-[0-9a-f-]{36}$/.test(portone.storeId.trim())&&typeof portone.channelKey==="string"&&portone.channelKey.trim().startsWith("channel-key-")&&typeof window.PortOne==="object"&&typeof window.PortOne.requestPayment==="function",portoneTest=portone.mode!=="live";let paypalUrl="";try{const u=new URL(paypal.links?.[item.sku]);if(u.protocol==="https:")paypalUrl=u.href}catch(_){}const payableSkus=new Set((catalog.commerce&&catalog.commerce.payableSkus)||[]);
++if(!payableSkus.has(item.sku)){
++  const priced=((catalog.commerce&&catalog.commerce.publicPriceSkus)||[]).includes(item.sku);
++  const priceHtml=priced?`<div class="price">${money.format(item.amount)}${item.interval?` / ${item.interval==="month"?c.month:c.year}`:""}</div>`:"";
++  const why=item.sale==="closed-file"?(en?"The sale PDF is not confirmed, so this page has no payment button and does not send a file.":"판매용 PDF가 확인되지 않아 결제 버튼이 없고 파일도 보내지 않습니다."):item.sale==="consult"?(en?"The amount shown is the fee for a 90-minute session. Email does not charge you. The session happens only after a time is confirmed.":"표시 금액은 90분 상담 안내 금액입니다. 메일을 보내도 결제되지 않으며, 일정을 확인한 뒤에만 진행합니다."):(en?"This product has no public price and no payment button.":"이 상품은 가격과 결제 버튼 없이 판매 전입니다.");
++  const closedSubject=encodeURIComponent(`[${item.sku}] ${item.name}`);
++  const closedBody=encodeURIComponent(en?`Product: ${item.name}\nSKU: ${item.sku}\nThis message is a question, not a payment.\n\nName:\nMessage:`:`상품명: ${item.name}\nSKU: ${item.sku}\n결제가 아닌 문의입니다.\n\n이름:\n문의:`);
++  const closedMail=`mailto:${encodeURIComponent(paypal.supportEmail||"support@stargateedu.co.kr")}?subject=${closedSubject}&body=${closedBody}`;
++  root.innerHTML=`<div class="kicker">${item.sku}</div><h1>${item.name}</h1><p class="summary">${item.summary}</p>${priceHtml}<div class="notice">${why}</div><a class="pay" href="${closedMail}">${en?"Email a question":"메일로 문의"}</a><a class="support" href="${shop}">${c.list}</a>`;
++  return;
++}
++let action="email",notice=c.fallback;if(serverId){if(paypalUrl)action="paypal";else if(portoneReady)action="portone";else if(keyReady)action="toss";else notice=c.keyMissing}else if(paypalUrl)action="paypal";else if(item.type==="physical_book")notice=c.physical;else if(item.interval)notice=c.subscription;
+ const paypalSku=!!(typeof toss.paypalClientKey==="string"&&toss.paypalClientKey.trim()&&typeof TossPayments==="function"&&Number(toss.paypalUsd?.[item.sku])>0);
+ const salesMode=catalog.availability?.[id]||"consultation";
+ if(salesMode!=="request"&&!paypalSku){
+diff --git a/consult.html b/consult.html
+index 6c5121d..a0b4ed7 100644
+--- a/consult.html
++++ b/consult.html
+@@ -1,13 +1,22 @@
+-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>수강 상담 준비 · STARGATE EDU</title><meta name="description" content="학년·코딩 경험·목표에 맞춰 KOI·수학 ZOOM 수강 상담 내용을 준비하세요."><link rel="canonical" href="https://shop.stargateedu.co.kr/consult.html"><style>
++<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>상담 내용 준비 · STARGATE EDU</title><meta name="description" content="학년·코딩 경험·목표 세 가지로 문의 내용을 만듭니다. 실시간 수업의 개강일과 수강료는 확정 전입니다."><link rel="canonical" href="https://shop.stargateedu.co.kr/consult.html"><style>
+ :root{--navy:#0B2A4A;--gold:#C9A227;--line:#E4E7EC;--gray:#667085}*{box-sizing:border-box}body{margin:0;background:#F7F9FC;color:#1A2233;font:16px/1.65 'Malgun Gothic',sans-serif}a{color:var(--navy)}header{border-bottom:1px solid var(--line);background:white}.top{max-width:980px;margin:auto;padding:18px 22px;display:flex;justify-content:space-between;gap:20px}.brand{font-weight:900;text-decoration:none}.brand b{color:var(--gold)}main{max-width:980px;margin:40px auto;padding:0 20px}h1{font-size:clamp(27px,5vw,38px);line-height:1.3;color:var(--navy);margin:8px 0 14px}.eyebrow{font-size:13px;color:#745a06;font-weight:800}.intro{color:var(--gray);max-width:700px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:28px}.panel{background:white;border:1px solid var(--line);border-radius:18px;padding:26px;min-width:0}h2{font-size:20px;margin:0 0 18px;color:var(--navy)}label{display:block;font-weight:700;font-size:14px;margin-bottom:7px}.field{margin-bottom:19px}select,textarea{width:100%;font:inherit;border:1px solid #bcc5d1;border-radius:9px;padding:11px;background:white;color:#1A2233}textarea{resize:vertical;min-height:105px}pre{font-family:inherit;font-size:14px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6f9;padding:18px;border-radius:10px;margin:0 0 16px}.btn{display:block;text-align:center;width:100%;padding:13px 16px;margin-top:10px;border-radius:9px;font:inherit;font-weight:800;text-decoration:none;border:1px solid var(--line);background:#fff;color:var(--navy);cursor:pointer}.gold{background:var(--gold);color:#302600;border-color:var(--gold)}.kakao{background:#fee500;color:#191600;border-color:#fee500}.note{font-size:12px;color:var(--gray)}.status{font-size:13px;min-height:24px;color:var(--navy)}.info{padding:18px 20px;border-left:4px solid var(--gold);background:#fff;margin-top:26px;font-size:14px}footer{max-width:980px;margin:30px auto;padding:20px;color:var(--gray);font-size:12px}a:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #0e7c86;outline-offset:3px}@media(max-width:720px){.layout{grid-template-columns:1fr}main{margin-top:26px}.panel{padding:21px}}
+-</style></head><body><header><div class="top"><a class="brand" href="/">STARGATE<b>EDU</b></a><a href="/faq.html">자주 묻는 질문</a></div></header><main><div class="eyebrow">2026.11.08(일) ZOOM 개강 · 상담 준비</div><h1>세 가지만 선택하고,<br>나에게 맞는 수업을 문의하세요.</h1><p class="intro">학년·경험·목표를 알려주시면 적합한 학습 경로와 수업 조건을 안내합니다. 아래에서 내용을 준비한 뒤 카카오톡이나 이메일로 직접 보내주세요.</p>
++</style></head><body><header><div class="top"><a class="brand" href="/">STARGATE<b>EDU</b></a><a href="/faq.html">자주 묻는 질문</a></div></header><main><div class="eyebrow">결제되지 않는 문의 초안</div><h1>세 가지만 선택하고,<br>문의 내용을 만드세요.</h1><p class="intro">이 페이지는 수강 등록이나 결제가 아닙니다. 실시간 수업의 개강일, 수강료, 정원, 환불은 확정 전입니다. 90분 전략 상담의 안내 금액은 250,000원이며, 일정을 확인한 뒤에만 진행합니다.</p>
+ <div class="layout"><section class="panel" aria-labelledby="profile-title"><h2 id="profile-title">1. 상담 정보 선택</h2><form id="consult-form">
+-<div class="field"><label for="grade">현재 학년</label><select id="grade" name="grade"><option>초등 고학년</option><option selected>중학생</option><option>고등학생</option><option>기타·상담 후 결정</option></select></div>
++<div class="field"><label for="grade">현재 학년</label><select id="grade" name="grade"><option>초등 고학년</option><option selected>중학생</option><option>고등학생 이상</option><option>기타·상담 후 결정</option></select></div>
+ <div class="field"><label for="experience">C++·코딩 경험</label><select id="experience" name="experience"><option selected>처음 시작</option><option>기초 문법 가능</option><option>알고리즘 풀이 경험 있음</option></select></div>
+-<div class="field"><label for="goal">상담 목표</label><select id="goal" name="goal"><option selected>11월 ZOOM KOI·알고리즘 수업</option><option>11월 ZOOM 수학 수업</option><option>90분 입시·대회 전략 상담</option><option>전자책 주문·학습 방법</option><option>수준에 맞는 과정 추천</option></select></div>
+-<div class="field"><label for="question">궁금한 점 <span class="note">(선택)</span></label><textarea id="question" name="question" maxlength="500" placeholder="예: 평일 저녁 수강 가능 여부, 현재 학습 중인 단원"></textarea></div><p class="note">입력 내용은 서버로 전송하거나 브라우저에 저장하지 않습니다. 연락처·학생 이름은 실제 상담 채널에서 필요한 경우 알려주세요.</p></form></section>
++<div class="field"><label for="goal">상담 목표</label><select id="goal" name="goal"><option value="class">실시간 수업은 일정 확정 전 · 수준만 문의</option><option value="consult">90분 입시·대회 전략 상담</option><option value="file">전자책 판매 파일 확인 문의</option><option value="path" selected>진단 결과로 경로 문의</option></select></div>
++<div class="field"><label for="question">궁금한 점 <span class="note">(선택)</span></label><textarea id="question" name="question" maxlength="500" placeholder="예: 현재 학습 중인 단원. 수업 일정은 아직 없습니다."></textarea></div><p class="note">입력 내용은 서버로 전송하거나 브라우저에 저장하지 않습니다. 연락처·학생 이름은 실제 상담 채널에서 필요한 경우 알려주세요.</p></form></section>
+ <section class="panel" aria-labelledby="message-title"><h2 id="message-title">2. 내용 확인 후 직접 보내기</h2><pre id="consult-message" aria-label="작성된 상담 내용"></pre><button type="button" class="btn gold" id="copy-message">상담 내용 복사</button><p class="status" id="copy-status" role="status"></p><a class="btn kakao" id="kakao-link" href="https://open.kakao.com/o/suuKwjTi" target="_blank" rel="noopener noreferrer">카카오톡 열기 ↗</a><p class="note">복사한 내용을 대화창에 붙여넣고 직접 전송해 주세요.</p><a class="btn" id="email-link" href="mailto:support@stargateedu.co.kr">이메일 초안 열기</a><p class="note">메일 앱이 열리면 내용을 확인한 뒤 직접 발송해 주세요. 이 페이지에서 상담이 접수되지는 않습니다.</p></section></div>
+-<div class="info"><strong>신청 전에 확인하세요</strong><p>ZOOM 수업 시간표·회차·수강료·정원·보강 방식은 상담에서 안내합니다. 상담 후 운영 조건을 확인하고 수강을 결정하세요.</p><a href="/#quick-start">대표 상품 비교</a> · <a href="/start.html">무료 학습 진단</a> · <a href="/refund.html">환불정책</a></div></main><footer>주식회사 별의문 · STARGATE EDU · <a href="mailto:support@stargateedu.co.kr">support@stargateedu.co.kr</a></footer>
++<div class="info"><strong>보내기 전에 확인하세요</strong><p>실시간 수업은 대상·총액·정원·환불이 확정되기 전에는 개강일을 정하지 않습니다. 90분 상담은 250,000원이고, 미리 보낼 내용은 학년·최근 학습·목표 대회이며, 끝나면 학습 순서 1장을 받습니다. 이 페이지에서 메일을 열어도 접수되거나 결제되지 않습니다.</p><a href="/#offers">지금 안내</a> · <a href="/start.html">무료 학습 진단</a> · <a href="/refund.html">환불정책</a></div></main><footer>주식회사 별의문 · STARGATE EDU · <a href="mailto:support@stargateedu.co.kr">support@stargateedu.co.kr</a></footer>
+ <script>
+-(()=>{"use strict";const form=document.getElementById("consult-form"),message=document.getElementById("consult-message"),status=document.getElementById("copy-status");function update(){const data=new FormData(form);const text=["[STARGATE EDU 수강 상담]","학년: "+data.get("grade"),"코딩 경험: "+data.get("experience"),"상담 목표: "+data.get("goal"),"문의사항: "+(String(data.get("question")||"").trim()||"시간표·수강료·진행 방식 안내를 부탁드립니다.")].join("\n");message.textContent=text;document.getElementById("email-link").href="mailto:support@stargateedu.co.kr?subject="+encodeURIComponent("STARGATE EDU · "+data.get("goal"))+"&body="+encodeURIComponent(text);status.textContent="";}form.addEventListener("input",update);form.addEventListener("change",update);form.addEventListener("submit",e=>e.preventDefault());document.getElementById("copy-message").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(message.textContent);status.textContent="복사했습니다. 카카오톡에서 붙여넣고 직접 보내주세요.";}catch(_){status.textContent="자동 복사를 사용할 수 없습니다. 위 상담 내용을 길게 누르거나 선택해서 복사해 주세요.";}});update();})();
++(()=>{"use strict";const form=document.getElementById("consult-form"),message=document.getElementById("consult-message"),status=document.getElementById("copy-status");
++const params=new URLSearchParams(location.search);
++const gradeMap={elementary:"초등 고학년",middle:"중학생",high:"고등학생 이상"};
++const expMap={none:"처음 시작",basic:"기초 문법 가능",advanced:"알고리즘 풀이 경험 있음"};
++const shelfMap={class:"class",consult:"consult",file:"file",plan:"consult",competition:"class",explore:"file"};
++if(params.get("grade")&&gradeMap[params.get("grade")])document.getElementById("grade").value=gradeMap[params.get("grade")];
++if(params.get("experience")&&expMap[params.get("experience")])document.getElementById("experience").value=expMap[params.get("experience")];
++const shelf=shelfMap[params.get("shelf")]||shelfMap[params.get("goal")];
++if(shelf)document.getElementById("goal").value=shelf;
++function update(){const data=new FormData(form);const goalLabel=document.getElementById("goal").selectedOptions[0].textContent;const text=["[STARGATE EDU 문의 초안]","이 내용은 결제가 아닙니다.","학년: "+data.get("grade"),"코딩 경험: "+data.get("experience"),"상담 목표: "+goalLabel,"문의사항: "+(String(data.get("question")||"").trim()||"결제가 아닌 문의입니다.")].join("\n");message.textContent=text;document.getElementById("email-link").href="mailto:support@stargateedu.co.kr?subject="+encodeURIComponent("STARGATE EDU · "+data.get("goal"))+"&body="+encodeURIComponent(text);status.textContent="";}form.addEventListener("input",update);form.addEventListener("change",update);form.addEventListener("submit",e=>e.preventDefault());document.getElementById("copy-message").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(message.textContent);status.textContent="복사했습니다. 카카오톡에서 붙여넣고 직접 보내주세요.";}catch(_){status.textContent="자동 복사를 사용할 수 없습니다. 위 상담 내용을 길게 누르거나 선택해서 복사해 주세요.";}});update();})();
+ </script></body></html>
+\ No newline at end of file
+diff --git a/en.html b/en.html
+index 5761a43..212bbd3 100644
+--- a/en.html
++++ b/en.html
+@@ -3,267 +3,41 @@
+ <head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-<title>Stargate Edu · Online Computing & Mathematics Olympiad School</title>
+-<meta name="description" content="Expert online preparation for KOI and KMO. Explore courses, textbooks, problem banks, mock exams, live classes, and one-to-one consulting.">
++<title>Stargate Edu · Payments are not open</title>
++<meta name="description" content="The English page does not sell courses, books, or subscriptions. Prices and payment stay on the Korean page, and no card payment is open there yet.">
+ <meta name="robots" content="index,follow">
+ <link rel="canonical" href="https://shop.stargateedu.co.kr/en.html">
+ <link rel="alternate" hreflang="ko" href="https://shop.stargateedu.co.kr/">
+ <link rel="alternate" hreflang="en" href="https://shop.stargateedu.co.kr/en.html">
+-<link rel="alternate" hreflang="x-default" href="https://shop.stargateedu.co.kr/en.html">
+-<meta property="og:title" content="Stargate Edu Shop">
+-<meta property="og:description" content="Elite Daechi-dong Olympiad preparation, available online worldwide.">
++<link rel="alternate" hreflang="x-default" href="https://shop.stargateedu.co.kr/">
++<meta property="og:title" content="Stargate Edu">
++<meta property="og:description" content="English orders are not open. The Korean page is the commercial page.">
+ <meta property="og:type" content="website">
+ <meta property="og:url" content="https://shop.stargateedu.co.kr/en.html">
+ <meta property="og:locale" content="en_US">
+-<meta property="og:locale:alternate" content="ko_KR">
+ <meta property="og:image" content="https://shop.stargateedu.co.kr/og-banner.png">
+-<meta property="og:image:width" content="1200">
+-<meta property="og:image:height" content="630">
+-<meta name="twitter:card" content="summary_large_image">
+-<link rel="manifest" href="/manifest.json">
+-<meta name="theme-color" content="#0B2A4A">
+-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+-<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+-<style>
+-  :root{--navy:#0B2A4A;--navy2:#123A63;--gold:#C9A227;--ink:#1A2233;--gray:#667085;--line:#E4E7EC;--bg:#F7F9FC;--white:#fff;}
+-  *{box-sizing:border-box;margin:0;padding:0;}
+-  html{scroll-behavior:smooth;}
+-  body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--ink);background:var(--white);line-height:1.6;}
+-  a{text-decoration:none;color:inherit;}
+-  .wrap{max-width:1160px;margin:0 auto;padding:0 20px;}
+-  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+-  .gnb{display:flex;align-items:center;gap:24px;height:64px;}
+-  .logo{font-weight:800;color:var(--navy);font-size:20px;letter-spacing:-.5px;}
+-  .logo b{color:var(--gold);}
+-  nav{display:flex;gap:14px;font-size:13px;flex:1;flex-wrap:nowrap;white-space:nowrap;}
+-  nav a{color:#344054;}nav a:hover{color:var(--navy);}
+-  .hbtns{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--gray);}
+-
+-  .lang-switch{padding:7px 10px;border:1px solid var(--line);border-radius:8px;color:var(--navy);font-weight:800;background:#fff;}
+-  .mini{padding:8px 16px;border-radius:8px;background:var(--gold);color:#3a2e00;font-weight:700;}
+-  .hero{background:linear-gradient(120deg,var(--navy) 0%,var(--navy2) 55%,#1c4d80 100%);color:#fff;position:relative;overflow:hidden;}
+-  .hero:after{content:"";position:absolute;right:-60px;top:-60px;width:360px;height:360px;background:radial-gradient(circle,rgba(201,162,39,.32),transparent 70%);}
+-  .hero .wrap{padding:80px 20px 74px;position:relative;z-index:2;}
+-  .eyebrow{color:var(--gold);font-size:14px;font-weight:700;letter-spacing:1px;}
+-  .hero h1{font-size:clamp(28px,5vw,46px);line-height:1.22;margin:14px 0;letter-spacing:-1.2px;}
+-  .hero p{color:#C9D8E8;font-size:clamp(15px,2vw,18px);max-width:600px;}
+-  .cta{display:flex;gap:14px;margin-top:30px;flex-wrap:wrap;}
+-  .btn{padding:14px 30px;border-radius:9px;font-size:15px;font-weight:700;border:0;cursor:pointer;display:inline-block;}
+-  .btn.gold{background:var(--gold);color:#3a2e00;}
+-  .btn.ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.55);}
+-  .trust{background:#0e3357;color:#fff;}
+-  .trust .wrap{display:flex;justify-content:space-around;flex-wrap:wrap;gap:16px;padding:26px 20px;text-align:center;}
+-  .trust b{display:block;font-size:26px;color:var(--gold);}
+-  .trust span{font-size:13px;color:#AFC6DD;}
+-  section.block{padding:64px 0;}
+-  section.block.alt{background:var(--bg);}
+-  .head{text-align:center;margin-bottom:38px;}
+-  .head h2{font-size:28px;color:var(--navy);letter-spacing:-.6px;}
+-  .head p{color:var(--gray);font-size:15px;margin-top:8px;}
+-  .cats{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;}
+-  .cat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px 10px;text-align:center;font-size:14px;color:#344054;font-weight:600;transition:.15s;}
+-  .cat:hover{border-color:var(--gold);transform:translateY(-3px);box-shadow:0 10px 24px rgba(11,42,74,.08);}
+-  .cat .ico{display:block;font-size:26px;margin-bottom:10px;}
+-  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+-  .card{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;transition:.15s;}
+-  .card:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(11,42,74,.10);}
+-  .thumb{height:120px;background:linear-gradient(135deg,#DCE6F2,#B9CEE6);display:flex;align-items:center;justify-content:center;color:#5a7699;font-size:13px;position:relative;text-align:center;padding:0 8px;}
+-  .badge{position:absolute;top:10px;left:10px;background:var(--gold);color:#3a2e00;font-size:11px;font-weight:800;padding:3px 10px;border-radius:12px;}
+-  .card .body{padding:16px;}
+-  .card .lbl{font-size:11px;color:var(--gold);font-weight:800;letter-spacing:.3px;}
+-  .card h3{font-size:15px;margin:6px 0 12px;color:var(--ink);line-height:1.4;min-height:42px;}
+-  .price{display:flex;align-items:baseline;gap:7px;}
+-  .price .dc{color:#E04F5F;font-weight:800;font-size:13px;}
+-  .price .now{font-weight:800;font-size:18px;color:var(--navy);}
+-  .price .was{font-size:12px;color:#98A2B3;text-decoration:line-through;}
+-  .meta{font-size:12px;color:var(--gray);margin-top:8px;}
+-  .content-pair{margin-top:12px;padding:10px;border-radius:9px;background:#F3F6FA;font-size:11.5px;color:#475467;line-height:1.45;}.content-pair b,.content-pair span{display:block}.content-pair b{color:var(--navy);margin-bottom:2px}.product-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.product-actions a,.product-actions button{border-radius:8px;padding:9px 8px;text-align:center;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.product-detail{border:1px solid var(--line);background:#fff;color:var(--navy)}.product-buy{border:1px solid var(--gold);background:var(--gold);color:#3a2e00}.product-modal{position:fixed;inset:0;z-index:100;display:none}.product-modal[aria-hidden="false"]{display:block}.product-modal__backdrop{position:absolute;inset:0;background:rgba(5,20,35,.68);backdrop-filter:blur(3px)}.product-modal__panel{position:relative;max-width:620px;max-height:86vh;overflow:auto;margin:7vh auto;background:#fff;border-radius:18px;padding:30px;box-shadow:0 24px 80px rgba(0,0,0,.3)}.product-modal__close{position:absolute;right:16px;top:12px;border:0;background:transparent;color:var(--gray);font-size:30px;cursor:pointer}.modal-kicker{font-size:11px;text-transform:uppercase;color:var(--gold);font-weight:800}.product-modal h2{color:var(--navy);font-size:24px;line-height:1.35;margin:7px 34px 8px 0}.product-modal h3{color:var(--navy);font-size:14px;margin:20px 0 6px}.product-modal ul{padding-left:20px;color:#475467;font-size:14px}.modal-summary{color:var(--gray);font-size:14px}.modal-price{font-size:25px;font-weight:800;color:var(--navy);margin-top:14px}.modal-related{display:flex;gap:8px;flex-wrap:wrap}.modal-related button{background:#EEF3F8;color:var(--navy);padding:7px 11px;border:0;border-radius:999px;font-size:12px;cursor:pointer}.modal-checkout{display:block;text-align:center;margin-top:24px}.modal-open{overflow:hidden}
+-  .grid3{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;}
+-  .plan{border:1px solid var(--line);border-radius:16px;padding:28px 24px;text-align:center;background:#fff;}
+-  .plan.hot{border:2px solid var(--gold);box-shadow:0 12px 30px rgba(201,162,39,.15);}
+-  .plan h3{color:var(--navy);font-size:18px;}
+-  .plan .p{font-size:30px;font-weight:800;color:var(--navy);margin:14px 0 4px;}
+-  .plan .p small{font-size:14px;color:var(--gray);font-weight:500;}
+-  .plan ul{list-style:none;margin:16px 0;color:#475467;font-size:13.5px;}
+-  .plan ul li{padding:5px 0;border-bottom:1px dashed var(--line);}
+-  .plan .tag{display:inline-block;background:var(--gold);color:#3a2e00;font-size:11px;font-weight:800;padding:3px 12px;border-radius:12px;margin-bottom:8px;}
+-  .cta-band{background:linear-gradient(120deg,var(--navy),#1c4d80);color:#fff;text-align:center;border-radius:20px;padding:48px 24px;margin:0 20px;}
+-  .cta-band h2{font-size:26px;letter-spacing:-.5px;}
+-  .cta-band p{color:#C9D8E8;margin:10px 0 22px;}
+-  footer{background:#0e2338;color:#9fb3c8;font-size:13px;margin-top:64px;}
+-  footer .wrap{padding:40px 20px 30px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:24px;}
+-  footer .logo{color:#fff;margin-bottom:10px;}
+-  footer a{color:#9fb3c8;}footer a:hover{color:#fff;}
+-  .fcol h4{color:#cdd9e6;font-size:13px;margin-bottom:8px;}
+-  .fcol div{padding:2px 0;}
+-  .business-info{margin-top:10px;color:#6f8298;font-size:12px;}
+-  .copy{border-top:1px solid #1c3550;text-align:center;padding:16px;color:#6f8298;font-size:12px;}
+-  .sale-status{grid-column:1/-1;color:var(--gray);font-size:11px;font-weight:700;padding-top:4px}.product-actions .sale-status{grid-column:1/-1}.mobile-menu{display:none;position:relative}.mobile-menu summary{cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--navy);font-weight:800}.mobile-menu[open] .mobile-menu__links{position:absolute;right:0;top:42px;min-width:220px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 28px rgba(0,0,0,.15);padding:10px;display:grid;gap:2px}.mobile-menu__links a{display:block;padding:8px;color:var(--navy)}
+-  @media(max-width:860px){
+-    nav{display:none;} .mobile-menu{display:block}.gnb{gap:10px;justify-content:space-between}.hbtns{margin-left:auto}.cats{grid-template-columns:repeat(3,1fr);} .grid{grid-template-columns:repeat(2,1fr);} .grid3{grid-template-columns:1fr;}
+-  }
+-  @media(max-width:560px){.lang-switch{display:none}.mini{padding:8px 10px;font-size:12px}.grid{grid-template-columns:1fr}.product-modal__panel{margin:4vh 14px;padding:24px;max-height:92vh}.product-actions{grid-template-columns:1fr}}
+-</style>
+ <link rel="stylesheet" href="/assets/stargate-tokens.css?v=20261017">
+ <style>
+-.zoom-live-band{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;align-items:center;background:linear-gradient(120deg,var(--navy),#1c4d80);color:#fff;border-radius:20px;padding:34px 30px}
+-.zoom-live-band .zl-badge{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid var(--gold);border-radius:999px;color:#F3D98E;font-size:12px;font-weight:800}
+-.zoom-live-band .zl-badge i{width:8px;height:8px;border-radius:50%;background:#ff5d5d}
+-.zoom-live-band h2{margin:12px 0 8px;font-size:26px;letter-spacing:-.5px;line-height:1.3}
+-.zoom-live-band p{color:#C9D8E8;font-size:14.5px;margin:0}
+-.zoom-live-band .zl-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+-.zoom-live-band .zl-kakao{background:#fee500;color:#191600}
+-.zoom-live-band ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+-.zoom-live-band li{display:flex;justify-content:space-between;gap:12px;padding:11px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:rgba(255,255,255,.06);font-size:13.5px}
+-.zoom-live-band li b{color:#F3D98E;white-space:nowrap}
+-@media(max-width:760px){.zoom-live-band{grid-template-columns:1fr;padding:28px 20px}.zoom-live-band h2{font-size:22px}}
++  body{margin:0;font-family:"Pretendard","Noto Sans KR",sans-serif;color:#1A2233;background:#fff;line-height:1.6}
++  a{color:#0B2A4A}
++  main{max-width:760px;margin:48px auto;padding:0 20px}
++  h1{color:#0B2A4A;font-size:clamp(28px,5vw,40px);line-height:1.25}
++  .btn{display:inline-block;margin:8px 8px 0 0;padding:12px 18px;border-radius:9px;background:#C9A227;color:#3a2e00;font-weight:800;text-decoration:none}
++  .ghost{background:#fff;color:#0B2A4A;border:1px solid #E4E7EC}
++  footer{margin-top:40px;color:#667085;font-size:13px}
+ </style>
+ </head>
+ <body>
+-<header>
+-  <div class="wrap gnb">
+-    <div class="logo">STARGATE<b>EDU</b></div>
+-    <nav>
+-      <a href="#courses">Online Courses</a><a href="#books">Books & Workbooks</a><a href="#sub">Problem Bank & Mock Exams</a><a href="#live">Live Classes</a><a href="#consult">1:1 Consulting</a><a href="/faq.html">FAQ</a><a href="https://www.stargateedu.co.kr/" rel="noopener">Company</a>
+-    </nav>
+-    <details class="mobile-menu"><summary>Menu</summary><div class="mobile-menu__links"><a href="#courses">Courses</a><a href="#books">Books</a><a href="#sub">Problem Bank</a><a href="#live">Live &amp; consulting</a><a href="/faq.html">FAQ</a><a href="https://www.stargateedu.co.kr/">Company</a></div></details>
+-    <div class="hbtns"><a class="lang-switch" href="/" lang="ko" hreflang="ko" aria-label="View this shop in Korean">KO</a><a href="/start.html" class="mini">Free diagnosis (KO)</a></div>
+-  </div>
+-</header>
+-
+-<section class="hero">
+-  <div class="wrap">
+-    <div class="eyebrow">KOI · KMO COMPUTING & MATHEMATICS OLYMPIAD</div>
+-    <h1>Daechi-dong’s elite curriculum,<br>now available online.</h1>
+-    <p>Algorithm learning paths and 1:1 guidance led by an SNU engineering graduate who completed doctoral coursework in smart-city engineering.</p>
+-    <div class="cta"><a href="#courses" class="btn gold">Explore courses</a><a href="/start.html" class="btn ghost">Free diagnosis (Korean)</a></div>
+-  </div>
+-</section>
+-
+-<div class="trust">
+-  <div class="wrap">
+-    <div><b>25</b><span>Core Algorithms</span></div>
+-    <div><b>KOI Award</b><span>Lead Instructor</span></div>
+-    <div><b>SNU Engineering</b><span>Graduate</span></div>
+-    <div><b>1:1</b><span>Strategy Guidance</span></div>
+-  </div>
+-</div>
+-
+-<section class="block" id="zoom-live" aria-labelledby="zoom-live-title">
+-  <div class="wrap">
+-    <div class="zoom-live-band">
+-      <div>
+-        <span class="zl-badge"><i aria-hidden="true"></i>LIVE · Starts Sun, Nov 8, 2026</span>
+-        <h2 id="zoom-live-title">Live ZOOM classes start November 8</h2>
+-        <p>Our lead instructor teaches Computing Olympiad (KOI) algorithms and mathematics live on ZOOM, reviewing code together on screen and answering questions in real time. Study the Daechi-dong curriculum from anywhere.</p>
+-        <div class="zl-cta">
+-          <a class="btn zl-kakao" href="https://open.kakao.com/o/suuKwjTi" target="_blank" rel="noopener noreferrer">Ask on KakaoTalk ↗</a>
+-          <a class="btn gold" href="mailto:support@stargateedu.co.kr?subject=ZOOM%20live%20class%20inquiry">Email us</a>
+-        </div>
+-      </div>
+-      <ul aria-label="ZOOM live class summary">
+-        <li><span>Start date</span><b>Sun, Nov 8, 2026</b></li>
+-        <li><span>Format</span><b>Live, interactive ZOOM</b></li>
+-        <li><span>Tracks</span><b>KOI algorithms / Math</b></li>
+-        <li><span>Schedule &amp; fees</span><b>Shared on inquiry</b></li>
+-      </ul>
+-    </div>
+-  </div>
+-</section>
+-
+-
+-
+-<section class="block" id="cat">
+-  <div class="wrap">
+-    <div class="head"><h2>Explore Categories</h2><p>Go straight to the program you need</p></div>
+-    <div class="cats">
+-      <a href="#courses" class="cat"><span class="ico">💻</span>Online Courses</a>
+-      <a href="#books" class="cat"><span class="ico">📘</span>Books & Workbooks</a>
+-      <a href="#sub" class="cat"><span class="ico">🗂️</span>Problem Bank</a>
+-      <a href="#sub" class="cat"><span class="ico">📝</span>Mock Exams</a>
+-      <a href="#live" class="cat"><span class="ico">🎤</span>Live Classes</a>
+-      <a href="#consult" class="cat"><span class="ico">🧭</span>1:1 Consulting</a>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block alt" id="courses">
+-  <div class="wrap">
+-    <div class="head"><h2>Online Courses</h2><p>Choose by goal and prerequisite level</p></div>
+-    <div class="grid">
+-      <div class="card"><div class="thumb">Advanced Computing Olympiad</div><div class="body"><div class="lbl">Online Course · Advanced</div><h3>Advanced Computing Olympiad: Data Structures & Algorithms</h3><div class="price"><span class="dc">22%</span><span class="now">₩429,000</span><span class="was">₩550,000</span></div><div class="meta">Prerequisite review recommended</div></div></div>
+-      <div class="card"><div class="thumb">Complete Algorithms Package</div><div class="body"><div class="lbl">Online Course · Package</div><h3>Complete Algorithms Package: Beginner + Advanced</h3><div class="price"><span class="dc">27%</span><span class="now">₩690,600</span><span class="was">₩946,000</span></div><div class="meta">Step-by-step beginner to advanced path</div></div></div>
+-      <div class="card"><div class="thumb">KMO Number Theory & Combinatorics</div><div class="body"><div class="lbl">Online Course · Competition Prep</div><h3>KMO Number Theory & Combinatorics</h3><div class="price"><span class="dc">20%</span><span class="now">₩384,000</span><span class="was">₩480,000</span></div><div class="meta">Focused number theory and combinatorics</div></div></div>
+-      <div class="card"><div class="thumb">Computing Olympiad Fundamentals</div><div class="body"><div class="lbl">Online Course · Beginner</div><h3>Computing Olympiad Fundamentals: C++ Basics</h3><div class="price"><span class="dc">25%</span><span class="now">₩297,000</span><span class="was">₩396,000</span></div><div class="meta">C++ fundamentals for beginners</div></div></div>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block" id="sub">
+-  <div class="wrap">
+-    <div class="head"><h2>Problem Bank & Mock Exam Subscriptions</h2><p>Build consistency with new competition-style problems every month</p></div>
+-    <div class="grid3">
+-      <div class="plan"><h3>Monthly Problem Bank</h3><div class="p">₩39,000<small> / month</small></div><ul><li>Access problems from every program</li><li>Filter by difficulty</li><li>Mistake review notebook</li></ul><a href="#" class="btn gold">Subscribe</a></div>
+-      <div class="plan"><h3>Monthly Mock Exams</h3><div class="p">₩49,000<small> / month</small></div><ul><li>Two full mock exams per month</li><li>Score reports and percentile ranking</li><li>Solution lectures included</li></ul><a href="#" class="btn gold">Subscribe</a></div>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block alt" id="books">
+-  <div class="wrap">
+-    <div class="head"><h2>Books & Workbooks</h2><p>Instructor-developed, classroom-tested materials</p></div>
+-    <div class="grid">
+-      <div class="card"><div class="thumb">Beginner Textbook</div><div class="body"><div class="lbl">Print Textbook</div><h3>Computing Olympiad Fundamentals Textbook</h3><div class="price"><span class="dc">10%</span><span class="now">₩28,800</span><span class="was">₩32,000</span></div></div></div>
+-      <div class="card"><div class="thumb">Workbook, Volume 1</div><div class="body"><div class="lbl">Print Workbook</div><h3>Algorithms Workbook, Volume 1</h3><div class="price"><span class="dc">10%</span><span class="now">₩31,500</span><span class="was">₩35,000</span></div></div></div>
+-      <div class="card"><div class="thumb">Past Papers & Solutions</div><div class="body"><div class="lbl">Print Past Papers</div><h3>KOI Past Papers & Solutions (2015–2025)</h3><div class="price"><span class="dc">10%</span><span class="now">₩37,800</span><span class="was">₩42,000</span></div></div></div>
+-      <div class="card"><div class="thumb">eBook Set</div><div class="body"><div class="lbl">eBook</div><h3>Algorithms Workbook eBook Set</h3><div class="price"><span class="dc">15%</span><span class="now">₩47,600</span><span class="was">₩56,000</span></div></div></div>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block" id="live">
+-  <div class="wrap">
+-    <div class="head"><h2>Live Classes &amp; 1:1 Consulting</h2><p id="consult">Seasonal intensives and personalized coaching</p></div>
+-    <div class="grid">
+-      <div class="card"><div class="thumb"><span class="badge">SEASONAL</span>Vacation Live Intensive</div><div class="body"><div class="lbl">Live · 8 Weekend Sessions</div><h3>Vacation Live Intensive (4 Weeks)</h3><div class="price"><span class="dc">12%</span><span class="now">₩281,600</span><span class="was">₩320,000</span></div></div></div>
+-      <div class="card"><div class="thumb">KOI Final Camp</div><div class="body"><div class="lbl">In Person · 2 Days</div><h3>KOI Final Camp</h3><div class="price"><span class="dc">10%</span><span class="now">₩405,000</span><span class="was">₩450,000</span></div></div></div>
+-      <div class="card"><div class="thumb">Strategy Consulting</div><div class="body"><div class="lbl">1:1 · 90 Minutes</div><h3>Admissions & Competition Strategy</h3><div class="price"><span class="now">₩250,000</span></div></div></div>
+-      <div class="card"><div class="thumb">Ongoing Mentoring</div><div class="body"><div class="lbl">1:1 · 4 Sessions/Month</div><h3>Ongoing 1:1 Mentoring</h3><div class="price"><span class="dc">6%</span><span class="now">₩752,000</span><span class="was">₩800,000</span></div></div></div>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block">
+-  <div class="cta-band">
+-    <h2>Start with a Free Orientation</h2>
+-    <p>From level assessment to a personalized learning roadmap, Stargate is with you.</p>
+-    <a href="/start.html" class="btn gold">Free diagnosis (Korean)</a>
+-  </div>
+-</section>
+-
+-<section class="sg-app-install" aria-label="Get the STARGATE app">
+-<style>.sg-app-install{max-width:1120px;margin:32px auto;padding:0 16px;box-sizing:border-box}.sg-app-install .sg-ai-card{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:20px 22px;border:1px solid rgba(127,127,127,.3);border-radius:16px;background:rgba(127,127,127,.06)}.sg-app-install .sg-ai-kicker{font-size:11px;letter-spacing:.12em;opacity:.7;font-weight:700}.sg-app-install h2{margin:4px 0 6px;font-size:20px}.sg-app-install p{margin:0;font-size:14px;opacity:.8;line-height:1.6}.sg-app-install .sg-ai-btn{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:10px 20px;border-radius:12px;background:#000;color:#fff!important;border:1px solid #3c3c3c;text-decoration:none!important;white-space:nowrap}.sg-app-install .sg-ai-btn:hover{background:#1f1f1f}.sg-app-install .sg-ai-btn small{display:block;font-size:11px;line-height:1.1;opacity:.85}.sg-app-install .sg-ai-btn b{display:block;font-size:17px;line-height:1.2}@media(max-width:560px){.sg-app-install .sg-ai-card{flex-direction:column;align-items:stretch;text-align:center}.sg-app-install .sg-ai-btn{justify-content:center}}</style>
+-<div class="sg-ai-card"><div><div class="sg-ai-kicker">STARGATE · ANDROID APP</div><h2>Get the STARGATE app</h2><p>KOI problem archive, AI math grading and 1:1 consultation in one app. No sign-up required.</p></div>
+-<a class="sg-ai-btn" href="https://play.google.com/store/apps/details?id=kr.co.stargateedu.twa&referrer=utm_source%3Dshop_en%26utm_medium%3Dinstall_section" target="_blank" rel="noopener noreferrer" aria-label="Install the STARGATE app on Google Play, new window"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="#00d7fe" d="M3.6 2.2 13.4 12l-9.8 9.8c-.3-.2-.5-.6-.5-1.1V3.3c0-.5.2-.9.5-1.1z"/><path fill="#ffce00" d="M16.8 15.4 13.4 12l3.4-3.4 4 2.3c1.1.6 1.1 1.7 0 2.3z"/><path fill="#ff3a44" d="M16.8 15.4 13.4 12l-9.8 9.8c.4.4 1 .4 1.7 0z"/><path fill="#00f076" d="M16.8 8.6 5.3 2.2c-.7-.4-1.3-.4-1.7 0l9.8 9.8z"/></svg><span><small>GET IT ON</small><b>Google Play</b></span></a></div>
+-</section>
+-<footer>
+-  <div class="wrap">
+-    <div class="fcol">
+-      <div class="logo">STARGATE<b>EDU</b></div>
+-      <div>Online School for Computing & Mathematics Olympiads</div>
+-      <div class="business-info">Company: 주식회사 별의문 · Representative: Dongsoo Jung<br>Business Registration: 848-86-03835 · E-commerce Registration: 2025-서울강남-05246호<br>Address: 서울 강남구 강남대로112길 47 · Phone: <a href="tel:+827080278225">070-8027-8225</a> · Payment line: <a href="tel:+821095878225">010-9587-8225</a> · Email: ceo@stargateedu.co.kr · Hosting: GitHub Pages</div>
+-    </div>
+-    <div class="fcol"><h4>Customer Support</h4><div>Weekdays 10:00–18:00 KST</div><div>Kakao Channel Support</div><div>Contact Us</div></div>
+-    <div class="fcol"><h4>Quick Links</h4><div><a href="https://www.stargateedu.co.kr/" rel="noopener">Main Portal (stargateedu.co.kr)</a></div><div><a href="#courses">Online Courses</a></div><div><a href="#sub">Problem Bank & Mock Exams</a></div><div><a href="#consult">1:1 Consulting</a></div></div>
+-    <div class="fcol"><h4>Policies</h4><div><a href="/terms.html">Terms of Service</a></div><div><a href="/privacy.html">Privacy Policy</a></div><div><a href="/refund.html">Refund Policy</a></div></div>
+-  </div>
+-  <div class="copy">© 2026 Stargate Edu. All rights reserved. · shop.stargateedu.co.kr/en/</div>
+-</footer>
+-<script src="/catalog.js?v=20261021"></script><script src="/payment-links.js?v=20261021"></script><script src="/store.js?v=20261021"></script>
+-<script>
+-if ("serviceWorker" in navigator) {
+-  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+-}
+-</script>
++<main>
++  <p>STARGATE EDU</p>
++  <h1>This English page does not take payment.</h1>
++  <p>Courses, textbooks, problem-bank subscriptions, camps, and mentoring are not for sale here. No prices are listed in English until one paid Korean order exists.</p>
++  <p>The Korean page states the only quoted fee, a 90-minute strategy session, and it also states that the ebook payment stays closed until the sale PDF is confirmed. A class opening date is not announced until the audience, fee, capacity, and refund terms are fixed.</p>
++  <p><a class="btn" href="/">Korean page</a><a class="btn ghost" href="mailto:support@stargateedu.co.kr?subject=Stargate%20Edu%20question">Email a question</a></p>
++  <footer>
++    Stargate Edu · 주식회사 별의문 · Business registration 848-86-03835 · Mail-order report 2025-서울강남-05246<br>
++    Refunds: <a href="/refund.html">refund policy</a> · support@stargateedu.co.kr
++  </footer>
++</main>
+ </body>
+ </html>
+diff --git a/faq.html b/faq.html
+index da09d15..e02b763 100644
+--- a/faq.html
++++ b/faq.html
+@@ -273,7 +273,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
+       <h1>궁금한 점을<br><span class="accent">먼저 확인</span>하세요.</h1>
+       <p>대치동 KOI·수학 프리미엄 1:1 지도에 대해 자주 묻는 질문을 정리했습니다. 답을 찾지 못하셨다면 이메일로 문의해 주세요. 확인 후 순차적으로 회신드립니다.</p>
+       <span class="hero__note"><span class="hero__dot"></span> ZOOM 실시간 · 전자책 · 1:1 전략 상담</span>
+-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px"><a class="btn btn--primary" href="/consult.html">수강 상담 내용 준비</a><a class="btn btn--ghost" href="/#quick-start">대표 상품 비교</a></div>
++      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px"><a class="btn btn--primary" href="/consult.html">수강 상담 내용 준비</a><a class="btn btn--ghost" href="/#offers">지금 안내</a></div>
+     </div>
+   </section>
+ 
+@@ -290,7 +290,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
+     <div class="faq" id="faqList"></div>
+   </section>
+ 
+-<section class="section wrap" id="contact"><div class="section__head"><span class="section__num">02</span><div><h2 class="section__title">상담을 준비하세요</h2><p class="section__desc">학년·경험·목표를 선택해 문의 내용을 만들 수 있습니다. 이 페이지에는 문의가 접수되지 않습니다.</p></div></div><div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn btn--primary" href="/consult.html">수강 상담 내용 준비</a><a class="btn btn--ghost" href="/refund.html">환불정책 확인</a><a class="btn btn--ghost" href="/">대표 상품 보기</a></div></section>
++<section class="section wrap" id="contact"><div class="section__head"><span class="section__num">02</span><div><h2 class="section__title">상담을 준비하세요</h2><p class="section__desc">학년·경험·목표를 선택해 문의 내용을 만들 수 있습니다. 이 페이지에는 문의가 접수되지 않습니다.</p></div></div><div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn btn--primary" href="/consult.html">수강 상담 내용 준비</a><a class="btn btn--ghost" href="/refund.html">환불정책 확인</a><a class="btn btn--ghost" href="/#offers">지금 안내</a></div></section>
+ </main>
+ 
+ <footer class="site-foot">
+@@ -312,7 +312,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
+ </footer>
+ 
+ <script>
+-const FAQ=[{"cat":"상담","q":"상담과 수강 신청은 어떻게 하나요?","a":"상담 준비 페이지에서 학년·코딩 경험·목표를 선택해 문의 내용을 만들 수 있습니다. 내용을 복사해 카카오톡으로 보내거나 이메일 초안을 열어 직접 발송해 주세요. 확인 후 순차적으로 회신드립니다."},{"cat":"수업방식","q":"11월 ZOOM 수업은 언제 시작하나요?","a":"2026년 11월 8일 일요일 개강 예정입니다. KOI·알고리즘과 수학을 실시간으로 지도합니다. 반별 시간표·총 회차·수강료·정원·보강 방식은 상담에서 확인해 주세요."},{"cat":"수업방식","q":"온라인 수업은 어떻게 진행되나요?","a":"ZOOM 실시간 쌍방향 방식으로 진행합니다. 화면 공유를 활용해 코드를 검토하고 문제 풀이와 질문을 함께 다룹니다. 수강 전 준비물과 접속 방법은 반별 안내를 확인해 주세요."},{"cat":"KOI","q":"코딩이 처음인데 시작할 수 있나요?","a":"무료 진단 또는 상담을 통해 현재 수준을 확인하고 적합한 입문 경로와 수강 가능 여부를 안내합니다. C++ 경험과 현재 학년을 함께 알려주세요."},{"cat":"KOI","q":"어떤 내용을 공부하나요?","a":"C++ 입문부터 자료구조·그래프·동적계획법 등 알고리즘 학습 경로를 안내합니다. 실제 반의 진도와 선수학습은 상담에서 확인해 주세요."},{"cat":"수학","q":"수학 상담에는 무엇을 준비하면 되나요?","a":"현재 학년, 학습 중인 단원, 어려운 유형, 내신·심화·경시 등 목표를 알려주세요. 지도 가능 범위와 수업 조건을 먼저 확인합니다."},{"cat":"상담","q":"강사 이력을 알려주세요.","a":"정동수 대표 강사는 서울대학교 공과대학 학부를 졸업하고, 서울대학교 건설환경공학부 스마트도시공학 박사과정을 수료했습니다. 수학·KOI 교육을 운영하고 있습니다."},{"cat":"수강료","q":"대표 상품 가격은 얼마인가요?","a":"25개 핵심 알고리즘 가이드 전자책은 30,000원, 입시·대회 전략 컨설팅은 90분 250,000원으로 안내하고 있습니다. ZOOM 수업은 시간표·회차와 함께 수강료를 상담에서 안내합니다."},{"cat":"주문","q":"전자책은 어떻게 주문하고 받나요?","a":"현재 전자책은 이메일 주문 신청을 받습니다. 제공 가능 여부와 결제·전달 방법은 주문 확인 후 안내합니다. 신청만으로 결제나 청구가 발생하지 않습니다."},{"cat":"주문","q":"카드 결제와 자동 다운로드가 가능한가요?","a":"현재 카드 결제와 전자책 자동 전달은 준비 중입니다. 주문·상담 버튼을 통해 제공 가능 여부를 먼저 확인해 주세요."},{"cat":"수강료","q":"변경·취소·환불은 어디로 문의하나요?","a":"쇼핑몰 환불정책을 확인하고 support@stargateedu.co.kr로 상품명과 신청 내용을 보내주세요. 개별 주문 조건과 적용 기준을 확인해 안내합니다."}];
++const FAQ=[{"cat":"상담","q":"상담과 수강 신청은 어떻게 하나요?","a":"상담 준비 페이지에서 학년·코딩 경험·목표를 선택해 문의 내용을 만들 수 있습니다. 내용을 복사해 카카오톡으로 보내거나 이메일 초안을 열어 직접 발송해 주세요. 확인 후 순차적으로 회신드립니다."},{"cat":"수업방식","q":"실시간 수업 개강일이 정해져 있나요?","a":"아닙니다. 대상, 수강료, 정원, 환불이 확정되기 전에는 개강일을 적지 않습니다."},{"cat":"수업방식","q":"온라인 수업은 어떻게 진행되나요?","a":"개강이 확정되면 수업은 ZOOM으로 진행할 예정입니다. 지금은 반, 시간, 수강료가 없습니다."},{"cat":"KOI","q":"코딩이 처음인데 시작할 수 있나요?","a":"무료 진단 또는 상담을 통해 현재 수준을 확인하고 적합한 입문 경로와 수강 가능 여부를 안내합니다. C++ 경험과 현재 학년을 함께 알려주세요."},{"cat":"KOI","q":"어떤 내용을 공부하나요?","a":"C++ 입문부터 자료구조·그래프·동적계획법 등 알고리즘 학습 경로를 안내합니다. 실제 반의 진도와 선수학습은 상담에서 확인해 주세요."},{"cat":"수학","q":"수학 상담에는 무엇을 준비하면 되나요?","a":"현재 학년, 학습 중인 단원, 어려운 유형, 내신·심화·경시 등 목표를 알려주세요. 지도 가능 범위와 수업 조건을 먼저 확인합니다."},{"cat":"상담","q":"강사 이력을 알려주세요.","a":"정동수 대표 강사는 서울대학교 공과대학 학부를 졸업하고, 서울대학교 건설환경공학부 스마트도시공학 박사과정을 수료했습니다. 수학·KOI 교육을 운영하고 있습니다."},{"cat":"수강료","q":"대표 상품 가격은 얼마인가요?","a":"이 페이지에 금액이 있는 안내는 90분 전략 상담 250,000원뿐입니다. 전자책, 실시간 수업, 강의, 문제은행, 교재는 결제 금액이 없습니다."},{"cat":"주문","q":"전자책은 어떻게 주문하고 받나요?","a":"판매용 PDF가 확인되기 전에는 결제 버튼이 없습니다. 메일을 보내도 결제되거나 파일이 발송되지 않습니다."},{"cat":"주문","q":"카드 결제와 자동 다운로드가 가능한가요?","a":"카드 결제와 자동 다운로드는 연결되어 있지 않습니다. 전자책 결제는 판매 파일이 확인된 뒤에만 열립니다."},{"cat":"수강료","q":"변경·취소·환불은 어디로 문의하나요?","a":"쇼핑몰 환불정책을 확인하고 support@stargateedu.co.kr로 상품명과 신청 내용을 보내주세요. 개별 주문 조건과 적용 기준을 확인해 안내합니다."}];
+ const cats=["전체",...new Set(FAQ.map(x=>x.cat))];let selected="전체";
+ const esc=s=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ function render(){document.getElementById("faqChips").innerHTML=cats.map(cat=>'<button type="button" class="chip'+(cat===selected?' is-active':'')+'" data-category="'+esc(cat)+'" aria-pressed="'+(cat===selected)+'">'+esc(cat)+'</button>').join("");document.getElementById("faqList").innerHTML=FAQ.filter(x=>selected==="전체"||x.cat===selected).map(x=>'<details style="padding:18px;border-bottom:1px solid var(--line)"><summary style="cursor:pointer;font-weight:700">['+esc(x.cat)+'] '+esc(x.q)+'</summary><p style="margin-top:12px;color:var(--ink-2)">'+esc(x.a)+'</p></details>').join("");}
+diff --git a/index.html b/index.html
+index ccd3fdb..b5702d1 100644
+--- a/index.html
++++ b/index.html
+@@ -3,15 +3,15 @@
+ <head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-<title>STARGATE EDU · 11월 8일 ZOOM 개강 · 알고리즘 전자책·상담</title>
+-<meta name="description" content="KOI·KMO 정보/수학 올림피아드 전문. 서울대 공대·스마트도시공학 박사과정 수료 대표 강사의 알고리즘 교재·강의·1:1 컨설팅.">
++<title>STARGATE EDU · 결제 전 안내 · 90분 상담</title>
++<meta name="description" content="오늘 이 페이지에서 카드 결제는 열리지 않습니다. 전자책 결제는 판매 파일 확인 후, 실시간 수업은 대상·수강료·정원·환불 확정 후에만 안내합니다. 90분 전략 상담은 250,000원입니다.">
+ <meta name="robots" content="index,follow">
+ <link rel="canonical" href="https://shop.stargateedu.co.kr/">
+ <link rel="alternate" hreflang="ko" href="https://shop.stargateedu.co.kr/">
+ <link rel="alternate" hreflang="en" href="https://shop.stargateedu.co.kr/en.html">
+-<link rel="alternate" hreflang="x-default" href="https://shop.stargateedu.co.kr/en.html">
++<link rel="alternate" hreflang="x-default" href="https://shop.stargateedu.co.kr/">
+ <meta property="og:title" content="Stargate Edu Shop">
+-<meta property="og:description" content="대치동 최상위 올림피아드 커리큘럼을 온라인에서 그대로.">
++<meta property="og:description" content="결제 버튼은 판매 파일이 확인된 뒤에만 열립니다. 지금 금액이 있는 안내는 90분 전략 상담입니다.">
+ <meta property="og:type" content="website">
+ <meta property="og:url" content="https://shop.stargateedu.co.kr/">
+ <meta property="og:locale" content="ko_KR">
+@@ -173,139 +173,107 @@ a:focus-visible,summary:focus-visible,button:focus-visible{outline:3px solid #C9
+   <div class="wrap gnb">
+     <div class="logo">STARGATE<b>EDU</b></div>
+     <nav>
+-      <a href="#courses">온라인 강의</a><a href="#books">교재·문제집</a><a href="#sub">문제은행·모의고사</a><a href="#zoom-live">ZOOM 실시간</a><a href="#live">라이브·특강</a><a href="#consult">1:1 컨설팅</a><a href="/faq.html">FAQ</a><a href="https://www.stargateedu.co.kr/" rel="noopener">회사 소개</a>
++      <a href="#offers">지금 안내</a><a href="#held">판매 전</a><a href="#offer-consult">90분 상담</a><a href="/faq.html">FAQ</a><a href="https://www.stargateedu.co.kr/" rel="noopener">회사 소개</a>
+     </nav>
+-    <details class="mobile-menu"><summary>메뉴</summary><div class="mobile-menu__links"><a href="#courses">과정 찾기</a><a href="#books">교재</a><a href="#sub">문제은행</a><a href="#zoom-live">ZOOM 실시간</a><a href="#live">특강·상담</a><a href="/faq.html">FAQ</a><a href="https://www.stargateedu.co.kr/">회사 소개</a></div></details>
++    <details class="mobile-menu"><summary>메뉴</summary><div class="mobile-menu__links"><a href="#offers">지금 안내</a><a href="#held">판매 전</a><a href="#offer-consult">90분 상담</a><a href="/faq.html">FAQ</a><a href="https://www.stargateedu.co.kr/">회사 소개</a></div></details>
+     <div class="hbtns"><a class="lang-switch" href="/en.html" lang="en" hreflang="en" aria-label="View this shop in English">EN</a><a href="/start.html" class="mini">무료 진단</a></div>
+   </div>
+ </header>
+ 
+ <section class="hero">
+   <div class="wrap">
+-    <div class="eyebrow">2026.11.08(일) 개강 · 수강 상담 접수</div>
+-    <h1>11월 8일, ZOOM으로<br>KOI·수학을 함께 시작하세요.</h1>
+-    <p>서울대 공대 출신 정동수 강사와 현재 수준에 맞는 학습 경로를 찾으세요. 전자책으로 시작하거나, 실시간 수업과 1:1 상담으로 대회 준비 계획을 세울 수 있습니다.</p>
+-    <div class="cta"><a href="/consult.html" class="btn gold">11월 개강 수강 상담 준비</a><a href="#quick-start" class="btn ghost">대표 상품 3개 비교</a><a href="/start.html" class="hero-diagnosis">어디서 시작할지 모르겠다면? 무료 진단 →</a></div>
++    <div class="eyebrow">결제 창구 · 판매 파일과 수업 조건 확인 전</div>
++    <h1>오늘 이 페이지에서<br>결제되는 상품은 없습니다.</h1>
++    <p>전자책 결제는 판매용 PDF가 확인된 뒤에만 열립니다. 실시간 수업은 대상, 수강료, 정원, 환불이 확정되기 전에는 개강일을 적지 않습니다. 지금 금액이 적힌 안내는 90분 전략 상담 하나입니다.</p>
++    <div class="cta"><a href="#offer-consult" class="btn gold">90분 상담 안내</a><a href="/start.html" class="btn ghost">3분 무료 진단</a></div>
+   </div>
+ </section>
+ 
+ <div class="trust">
+   <div class="wrap">
+-    <div><b>25개</b><span>핵심 알고리즘</span></div>
+-    <div><b>실시간</b><span>ZOOM 쌍방향 수업</span></div>
+     <div><b>서울대 공대</b><span>학부 졸업</span></div>
+-    <div><b>1:1</b><span>진단·전략 상담</span></div>
++    <div><b>ISBN</b><span>979-11-993413-0-2</span></div>
++    <div><b>통신판매업</b><span>2025-서울강남-05246</span></div>
++    <div><b>환불 메일</b><span>support@stargateedu.co.kr</span></div>
+   </div>
+ </div>
+ 
+-<section class="block" id="zoom-live" aria-labelledby="zoom-live-title">
++<section class="block" id="offers" aria-labelledby="offers-title">
+   <div class="wrap">
+-    <div class="zoom-live-band">
+-      <div>
+-        <span class="zl-badge"><i aria-hidden="true"></i>LIVE · 2026.11.08(일) 개강</span>
+-        <h2 id="zoom-live-title">ZOOM 실시간 수업, 11월 8일 시작합니다</h2>
+-        <p>KOI 정보올림피아드·알고리즘과 수학을 대표 강사가 ZOOM으로 실시간 지도합니다. 화면 공유로 코드를 함께 검토하고 질문에 바로 답합니다. 지방·해외에서도 대치동 커리큘럼 그대로 수강하세요.</p>
+-        <div class="zl-cta">
+-          <a class="btn zl-kakao" href="https://open.kakao.com/o/suuKwjTi" target="_blank" rel="noopener noreferrer">카카오톡 수강 상담 ↗</a>
+-          <a class="btn gold" href="https://www.stargateedu.co.kr/zoom-class/">수업 안내 자세히 보기</a>
+-        </div>
+-      </div>
+-      <ul aria-label="ZOOM 실시간 수업 요약">
+-        <li><span>개강일</span><b>2026년 11월 8일 (일)</b></li>
+-        <li><span>수업 방식</span><b>ZOOM 실시간 쌍방향</b></li>
+-        <li><span>과정</span><b>KOI·알고리즘 / 수학</b></li>
+-        <li><span>시간표·수강료</span><b>상담 시 개별 안내</b></li>
+-      </ul>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block alt" id="quick-start" aria-labelledby="featured-title">
+-  <div class="wrap">
+-    <div class="head"><h2 id="featured-title">지금 시작할 수 있는 대표 상품 3개</h2><p>혼자 학습하기 · 함께 배우기 · 개인 전략 세우기</p></div>
++    <div class="head"><h2 id="offers-title">지금 안내하는 세 칸</h2><p>결제 버튼이 있는 칸은 없습니다. 금액이 있는 칸은 상담 하나입니다.</p></div>
+     <div class="funnel">
+-      <article class="funnel-step"><span class="step">전자책 · 주문 신청</span><h3>25개 핵심 알고리즘 가이드</h3><div class="featured-price">30,000원</div><p>알고리즘의 전체 학습 순서를 먼저 잡고 싶은 학생에게 권합니다.</p><ul class="featured-list"><li>형식: PDF 전자책</li><li>내용: 핵심 알고리즘 25개·학습 순서</li><li>ISBN 979-11-993413-0-2</li></ul><details class="featured-detail"><summary>주문·전달 안내</summary><p>상품 페이지에서 내용을 확인한 뒤 이메일로 주문을 신청합니다. 제공 가능 여부와 결제·전달 방법은 주문 확인 후 안내합니다.</p></details><a class="btn gold" href="/checkout.html?sku=SGE-EBOOK-KOI-25">전자책 내용 확인·주문 신청</a><small>이메일 신청만으로 결제되지 않습니다.</small></article>
+-      <article class="funnel-step featured-live"><span class="step">ZOOM · 수강 상담 접수</span><h3>KOI·알고리즘 / 수학 실시간 수업</h3><div class="featured-price">11월 8일 (일) 개강</div><p>혼자 풀다 막히는 코드와 문제를 강사에게 질문하며 학습하고 싶은 학생에게 권합니다.</p><ul class="featured-list"><li>방식: ZOOM 실시간 쌍방향</li><li>내용: 코드 검토·문제 풀이·질문</li><li>시간표·회차·수강료: 상담 시 안내</li></ul><details class="featured-detail"><summary>수강 신청 순서</summary><p>상담 시 학년·코딩 경험·학습 목표를 알려주세요. 수준에 맞는 반과 운영 조건을 확인한 뒤 수강을 결정합니다.</p></details><a class="btn gold" href="https://open.kakao.com/o/suuKwjTi" target="_blank" rel="noopener noreferrer">카카오톡으로 수강 상담 ↗</a><small><a href="/consult.html">학년·경험·목표로 상담 내용 준비 →</a></small></article>
+-      <article class="funnel-step"><span class="step">1:1 · 일정 협의</span><h3>입시·대회 전략 컨설팅</h3><div class="featured-price">250,000원 <small>/ 90분</small></div><p>현재 수준과 목표에 맞춰 학습 우선순위와 대회 준비 계획을 정하고 싶은 학생에게 권합니다.</p><ul class="featured-list"><li>사전 진단: 학년·경험·목표 확인</li><li>진행: 90분 개인 전략 상담</li><li>내용: 개인 학습 로드맵 설계</li></ul><details class="featured-detail"><summary>상담 전 준비할 내용</summary><p>최근 학습 내용, 풀어 본 문제, 준비 중인 대회와 희망 일정을 알려주세요. 진행 가능 일정과 상담 방식을 먼저 안내합니다.</p></details><a class="btn gold" href="mailto:support@stargateedu.co.kr?subject=90%EB%B6%84%20%EC%A0%84%EB%9E%B5%20%EC%83%81%EB%8B%B4%20%EC%8B%A0%EC%B2%AD">90분 전략 상담 일정 문의</a><small>일정·진행 방식 확인 후 신청을 확정합니다.</small></article>
++      <article class="funnel-step" id="offer-file">
++        <span class="step">전자책 · 판매 파일 확인 전</span>
++        <h3>25개 핵심 알고리즘 가이드</h3>
++        <p>ISBN 979-11-993413-0-2로 등록된 판매용 PDF가 확인되기 전에는 가격을 적지 않고 결제 버튼도 없습니다.</p>
++        <ul class="featured-list">
++          <li>결제: 연결되어 있지 않음</li>
++          <li>파일 전달: 판매본 확인 전</li>
++          <li>이메일 신청만으로 청구되지 않음</li>
++        </ul>
++        <small>샘플 문제 묶음을 이 상품의 판매본으로 두지 않습니다.</small>
++      </article>
++      <article class="funnel-step" id="offer-class">
++        <span class="step">실시간 수업 · 일정 확정 전</span>
++        <h3>KOI·알고리즘 / 수학</h3>
++        <p>대상, 총 수강료, 정원, 환불이 한 페이지에 확정되기 전에는 개강일을 공지하지 않습니다.</p>
++        <ul class="featured-list">
++          <li>개강일: 확정 전</li>
++          <li>수강료·정원: 확정 전</li>
++          <li>이 페이지에서 수강 등록되지 않음</li>
++        </ul>
++        <a class="btn gold" href="/consult.html?shelf=class">수준만 문의 내용 만들기</a>
++        <small>문의 메일을 보내도 수강료가 청구되지 않습니다.</small>
++      </article>
++      <article class="funnel-step" id="offer-consult">
++        <span class="step">1:1 · 일정 확인 후 진행</span>
++        <h3>입시·대회 전략 컨설팅</h3>
++        <div class="featured-price">250,000원 <small>/ 90분</small></div>
++        <p>현재 수준과 목표에 맞춰 학습 순서 한 장을 만드는 상담입니다. 메일을 보내는 것만으로 결제되지 않습니다.</p>
++        <ul class="featured-list">
++          <li>미리 보낼 내용: 학년, 최근 학습, 목표 대회</li>
++          <li>진행: 90분</li>
++          <li>끝난 뒤 받는 것: 학습 순서 1장</li>
++        </ul>
++        <a class="btn gold" href="mailto:support@stargateedu.co.kr?subject=90%EB%B6%84%20%EC%A0%84%EB%9E%B5%20%EC%83%81%EB%8B%B4%20%EC%9D%BC%EC%A0%95%20%EB%AC%B8%EC%9D%98&amp;body=%EC%83%81%EB%8B%B4%20%ED%9D%AC%EB%A7%9D%EC%9D%BC%3A%0A%ED%95%99%EB%85%84%3A%0A%EC%B5%9C%EA%B7%BC%20%ED%95%99%EC%8A%B5%3A%0A%EB%AA%A9%ED%91%9C%20%EB%8C%80%ED%9A%8C%3A%0A%0A%EC%9D%B4%20%EB%A9%94%EC%9D%BC%EC%9D%80%20%EA%B2%B0%EC%A0%9C%EA%B0%80%20%EC%95%84%EB%8B%99%EB%8B%88%EB%8B%A4.">90분 상담 일정 문의</a>
++        <small>일정을 확인한 뒤에만 진행합니다. 정기 멘토링은 이 상담이 전달된 뒤에 따로 정합니다.</small>
++      </article>
+     </div>
+-    <div class="diagnosis-callout"><div><strong>어떤 상품이 맞을지 고민되시나요?</strong><p>학년·코딩 경험·목표 세 가지로 추천 경로를 확인하세요.</p></div><a class="btn navy" href="/start.html">3분 무료 진단</a></div>
+   </div>
+ </section>
+ 
+-<section class="block" id="cat">
++<section class="block alt" id="held" aria-labelledby="held-title">
+   <div class="wrap">
+-    <div class="head"><h2>카테고리</h2><p>원하는 과정으로 바로 이동하세요</p></div>
+-    <div class="cats">
+-      <a href="#courses" class="cat"><span class="ico">💻</span>온라인 강의</a>
+-      <a href="#books" class="cat"><span class="ico">📘</span>교재·문제집</a>
+-      <a href="#sub" class="cat"><span class="ico">🗂️</span>문제은행</a>
+-      <a href="#sub" class="cat"><span class="ico">📝</span>모의고사</a>
+-      <a href="#live" class="cat"><span class="ico">🎤</span>라이브·특강</a>
+-      <a href="#consult" class="cat"><span class="ico">🧭</span>1:1 컨설팅</a>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block" id="courses">
+-  <div class="wrap">
+-    <div class="head"><h2>온라인 강의</h2><p>목표와 선수학습에 따라 선택하는 과정</p></div>
+-    <div class="grid">
+-      <div class="card"><div class="thumb">정보올림피아드 심화</div><div class="body"><div class="lbl">온라인 강의 · 심화</div><h3>정보올림피아드 심화 (자료구조·알고리즘)</h3><div class="price"><span class="dc">22%</span><span class="now">429,000</span><span class="was">550,000</span></div><div class="meta">선수학습 확인 후 수강 권장</div></div></div>
+-      <div class="card"><div class="thumb">알고리즘 종합 패키지</div><div class="body"><div class="lbl">온라인 강의 · 패키지</div><h3>알고리즘 종합 패키지 (입문+심화)</h3><div class="price"><span class="dc">27%</span><span class="now">690,600</span><span class="was">946,000</span></div><div class="meta">입문부터 심화까지 단계별 구성</div></div></div>
+-      <div class="card"><div class="thumb">KMO 대비 정수론·조합</div><div class="body"><div class="lbl">온라인 강의 · 대회대비</div><h3>KMO 대비 정수론·조합</h3><div class="price"><span class="dc">20%</span><span class="now">384,000</span><span class="was">480,000</span></div><div class="meta">정수론·조합 집중 과정</div></div></div>
+-      <div class="card"><div class="thumb">정보올림피아드 입문</div><div class="body"><div class="lbl">온라인 강의 · 입문</div><h3>정보올림피아드 입문 (C++ 기초)</h3><div class="price"><span class="dc">25%</span><span class="now">297,000</span><span class="was">396,000</span></div><div class="meta">프로그래밍 입문자용 C++ 기초</div></div></div>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block" id="sub">
+-  <div class="wrap">
+-    <div class="head"><h2>문제은행 · 모의고사 구독</h2><p>매달 갱신되는 실전 문제로 꾸준하게</p></div>
+-    <div class="grid3">
+-      <div class="plan"><h3>문제은행 월 구독</h3><div class="p">39,000<small> / 월</small></div><ul><li>전 과정 문제 열람</li><li>난이도별 필터</li><li>오답노트 제공</li></ul><a href="#" class="btn gold">구독하기</a></div>
+-      <div class="plan"><h3>월간 모의고사</h3><div class="p">49,000<small> / 월</small></div><ul><li>월 2회 실전 모의고사</li><li>성적 리포트·백분위</li><li>해설 강의 포함</li></ul><a href="#" class="btn gold">구독하기</a></div>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block alt" id="books">
+-  <div class="wrap">
+-    <div class="head"><h2>교재·전자책</h2><p>학습 단계에 맞는 교재를 살펴보고 판매 가능 상태를 확인하세요.</p></div>
+-    <div class="grid">
+-      <div class="card"><div class="thumb">정보올림피아드 입문 교재</div><div class="body"><div class="lbl">실물 교재</div><h3>정보올림피아드 입문 교재</h3><div class="price"><span class="now">28,800원</span></div></div></div>
+-      <div class="card"><div class="thumb">알고리즘 문제집 상권</div><div class="body"><div class="lbl">실물 교재</div><h3>알고리즘 문제집 상권</h3><div class="price"><span class="now">31,500원</span></div></div></div>
+-      <div class="card"><div class="thumb">KOI 기출·해설집</div><div class="body"><div class="lbl">실물 교재</div><h3>KOI 기출·해설집 (2015–2025)</h3><div class="price"><span class="now">37,800원</span></div></div></div>
+-      <div class="card"><div class="thumb">알고리즘 문제집 eBook</div><div class="body"><div class="lbl">전자책</div><h3>알고리즘 문제집 eBook 세트</h3><div class="price"><span class="now">47,600원</span></div></div></div>
+-    </div>
+-  </div>
+-</section>
+-
+-<section class="block" id="live">
+-  <div class="wrap">
+-    <div class="head"><h2>라이브 · 특강 &amp; 1:1 컨설팅</h2><p id="consult">시즌 집중과 개인 맞춤 지도</p></div>
+-    <div class="grid">
+-      <div class="card"><div class="thumb"><span class="badge">시즌</span>방학 라이브특강</div><div class="body"><div class="lbl">라이브 · 주말 8회</div><h3>방학 집중 라이브특강 (4주)</h3><div class="price"><span class="dc">12%</span><span class="now">281,600</span><span class="was">320,000</span></div></div></div>
+-      <div class="card"><div class="thumb">KOI 파이널 캠프</div><div class="body"><div class="lbl">오프라인 · 2일</div><h3>KOI 직전 파이널 캠프</h3><div class="price"><span class="dc">10%</span><span class="now">405,000</span><span class="was">450,000</span></div></div></div>
+-      <div class="card"><div class="thumb">전략 컨설팅</div><div class="body"><div class="lbl">1:1 · 90분</div><h3>입시·대회 전략 컨설팅</h3><div class="price"><span class="now">250,000</span></div></div></div>
+-      <div class="card"><div class="thumb">정기 멘토링</div><div class="body"><div class="lbl">1:1 · 월 4회</div><h3>1:1 정기 멘토링</h3><div class="price"><span class="dc">6%</span><span class="now">752,000</span><span class="was">800,000</span></div></div></div>
++    <div class="head"><h2 id="held-title">판매 전</h2><p>아래 이름은 가격, 할인, 구매 버튼 없이 적어 둡니다. 수강 계정, 문제 열람, 재고, 배송이 없습니다.</p></div>
++    <div class="channel-card">
++      <h3>아직 팔지 않는 것</h3>
++      <ul>
++        <li>정보올림피아드 입문·심화, 알고리즘 종합 패키지, KMO 정수론·조합 강의</li>
++        <li>문제은행, 월간 모의고사</li>
++        <li>입문 교재, 알고리즘 문제집, KOI 기출·해설집, 문제집 전자책 세트</li>
++        <li>방학 집중 특강, KOI 파이널 캠프, 1:1 정기 멘토링</li>
++      </ul>
++      <p>문제은행은 구독으로 팔지 않습니다. 2026년에는 학년, 코딩 경험, 목표 세 가지만 무료 진단으로 받습니다. 나중에 열 구독의 월 요금은 이 페이지에 적지 않습니다.</p>
++      <div class="smart-actions"><a class="btn navy" href="/start.html">세 가지 답으로 진단</a></div>
+     </div>
+   </div>
+ </section>
+ 
+-
+ <section class="block">
+   <div class="cta-band">
+-    <h2>어떤 상품이 맞는지 3분 안에 확인하세요</h2>
+-    <p>결과에 따라 전자책·입문 강의·전략 상담 중 하나를 추천합니다.</p>
++    <h2>어떤 안내가 맞는지 세 가지로 확인하세요</h2>
++    <p>결과는 판매 파일, 일정 확정 전인 수업, 90분 상담 중 하나로만 돌아갑니다. 강의 상품으로 보내지 않습니다.</p>
+     <a href="/start.html" class="btn gold">무료 진단 시작</a>
+   </div>
+ </section>
+ 
+ <section class="block alt" id="purchase-faq" aria-labelledby="purchase-faq-title"><div class="wrap"><div class="head"><h2 id="purchase-faq-title">신청 전에 확인하세요</h2></div><div class="purchase-faq">
+-<details><summary>전자책 주문 신청을 하면 바로 결제되나요?</summary><p>아니요. 현재는 이메일 주문 신청을 받습니다. 제공 가능 여부와 결제·전달 방법을 확인한 뒤 구매를 결정하세요.</p></details>
+-<details><summary>ZOOM 수업 시간과 수강료는 어떻게 확인하나요?</summary><p>개강일은 2026년 11월 8일입니다. 반별 시간표·총 회차·수강료·정원·보강 방식은 수강 상담에서 확인해 주세요.</p></details>
+-<details><summary>C++를 처음 배우는데 수강할 수 있나요?</summary><p>학년과 코딩 경험을 알려주시면 적합한 입문 경로와 수강 가능 여부를 안내합니다. 무료 진단으로 먼저 추천 경로를 확인할 수도 있습니다.</p></details>
+-<details><summary>변경·취소·환불은 어디로 문의하나요?</summary><p><a href="/refund.html">환불정책</a>을 확인하시고 <a href="mailto:support@stargateedu.co.kr">support@stargateedu.co.kr</a>로 상품명과 신청 내용을 보내주세요.</p></details></div></div></section>
++<details><summary>전자책 신청을 하면 바로 결제되나요?</summary><p>아니요. 판매용 PDF가 확인되기 전에는 결제 버튼이 없습니다. 메일을 보내도 청구되거나 파일이 발송되지 않습니다.</p></details>
++<details><summary>파일은 언제 오나요?</summary><p>판매용 PDF가 확인되고 결제가 연결된 뒤, 결제 완료 다음 영업일에 이메일로 보내도록 준비합니다. 그 전에는 파일을 보내지 않습니다.</p></details>
++<details><summary>수업료는 얼마인가요?</summary><p>실시간 수업의 대상, 총액, 정원, 환불은 확정 전이라 개강일과 수강료를 적지 않습니다. 금액이 적힌 안내는 90분 전략 상담 250,000원뿐입니다.</p></details>
++<details><summary>변경·취소·환불은 어디로 문의하나요?</summary><p><a href="/refund.html">환불정책</a>을 확인하시고 <a href="mailto:support@stargateedu.co.kr">support@stargateedu.co.kr</a>로 상품명과 내용을 보내주세요. 결제된 주문이 없으면 환불할 금액도 없습니다.</p></details>
++</div></div></section>
++
+ <section class="sg-app-install" aria-label="스타게이트 공식 앱 설치">
+ <style>.sg-app-install{max-width:1120px;margin:32px auto;padding:0 16px;box-sizing:border-box}.sg-app-install .sg-ai-card{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:20px 22px;border:1px solid rgba(127,127,127,.3);border-radius:16px;background:rgba(127,127,127,.06)}.sg-app-install .sg-ai-kicker{font-size:11px;letter-spacing:.12em;opacity:.7;font-weight:700}.sg-app-install h2{margin:4px 0 6px;font-size:20px}.sg-app-install p{margin:0;font-size:14px;opacity:.8;line-height:1.6}.sg-app-install .sg-ai-btn{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:10px 20px;border-radius:12px;background:#000;color:#fff!important;border:1px solid #3c3c3c;text-decoration:none!important;white-space:nowrap}.sg-app-install .sg-ai-btn:hover{background:#1f1f1f}.sg-app-install .sg-ai-btn small{display:block;font-size:11px;line-height:1.1;opacity:.85}.sg-app-install .sg-ai-btn b{display:block;font-size:17px;line-height:1.2}@media(max-width:560px){.sg-app-install .sg-ai-card{flex-direction:column;align-items:stretch;text-align:center}.sg-app-install .sg-ai-btn{justify-content:center}}</style>
+ <div class="sg-ai-card"><div><div class="sg-ai-kicker">STARGATE · ANDROID APP</div><h2>스타게이트 공식 앱 설치</h2><p>KOI 기출 아카이브, AI 수학 채점, 1:1 상담 신청을 앱에서 바로 이용하세요. 회원가입 없이 사용할 수 있습니다.</p></div>
+@@ -318,12 +286,12 @@ a:focus-visible,summary:focus-visible,button:focus-visible{outline:3px solid #C9
+       <div>정보·수학 올림피아드 전문 온라인 스쿨</div>
+     </div>
+     <div class="fcol"><h4>고객센터</h4><div>평일 10:00–18:00</div><div><a href="/faq.html">자주 묻는 질문</a></div><div><a href="mailto:support@stargateedu.co.kr?subject=STARGATE%20EDU%20상담%20문의">1:1 이메일 문의</a></div></div>
+-    <div class="fcol"><h4>바로가기</h4><div><a href="https://www.stargateedu.co.kr/" rel="noopener">메인 포털 (stargateedu.co.kr)</a></div><div><a href="#courses">온라인 강의</a></div><div><a href="#sub">문제은행·모의고사</a></div><div><a href="#consult">1:1 컨설팅</a></div><div><a href="/faq.html">FAQ</a></div></div>
++    <div class="fcol"><h4>바로가기</h4><div><a href="https://www.stargateedu.co.kr/" rel="noopener">메인 포털 (stargateedu.co.kr)</a></div><div><a href="#offers">지금 안내</a></div><div><a href="#held">판매 전</a></div><div><a href="#offer-consult">90분 상담</a></div><div><a href="/faq.html">FAQ</a></div></div>
+     <div class="fcol"><h4>정책</h4><div><a href="/terms.html">이용약관</a></div><div><a href="/privacy.html">개인정보처리방침</a></div><div><a href="/refund.html">환불정책</a></div></div>
+   </div>
+   <div class="copy">ⓒ 2026 Stargate Edu. All rights reserved. · shop.stargateedu.co.kr<div class="business-info">상호: 주식회사 별의문 · 대표자: 정동수 · 사업자등록번호: 848-86-03835 · 통신판매업신고번호: 2025-서울강남-05246호<br>사업장 주소: 서울 강남구 강남대로112길 47 · 대표 전화: <a href="tel:+827080278225">070-8027-8225</a> · 결제 전화: <a href="tel:+821095878225">010-9587-8225</a> · 이메일: support@stargateedu.co.kr · 개인정보 보호책임자: 정동수 · 호스팅 제공자: GitHub Pages</div></div>
+ </footer>
+-<script src="/catalog.js?v=20261026"></script><script src="/payment-links.js?v=20261026"></script><script src="/store.js?v=20261026"></script>
++<script src="/catalog.js?v=20261027"></script><script src="/payment-links.js?v=20261027"></script><script src="/store.js?v=20261027"></script>
+ <script>
+ if ("serviceWorker" in navigator) {
+   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+diff --git a/payment-config.js b/payment-config.js
+index 15fa6ca..8023638 100644
+--- a/payment-config.js
++++ b/payment-config.js
+@@ -11,19 +11,10 @@ window.STARGATE_TOSS = Object.freeze({
+   successUrl: "https://shop.stargateedu.co.kr/success.html",
+   failUrl: "https://shop.stargateedu.co.kr/cancel.html",
+ 
+-  // Values are the product IDs used by the deployed toss-confirm server catalog.
+-  // Only one-time products that do not require a shipping address are enabled.
+-  products: Object.freeze({
+-    "SGE-EBOOK-KOI-25": "koi-algorithms-guide",
+-    "SGE-COURSE-KOI-ADV": "koi-advanced",
+-    "SGE-COURSE-ALGO-BUNDLE": "algorithms-bundle",
+-    "SGE-COURSE-KMO-NC": "kmo-number-comb",
+-    "SGE-COURSE-KOI-INTRO": "koi-cpp-beginner",
+-    "SGE-EBOOK-ALGO-SET": "algorithms-ebook-set",
+-    "SGE-LIVE-VACATION-4W": "vacation-live-intensive",
+-    "SGE-LIVE-KOI-FINAL": "koi-final-camp",
+-    "SGE-CONSULT-STRATEGY-90": "strategy-consulting"
+-  }),
++  // 판매용 PDF 확인 전에는 어떤 SKU도 결제창으로 넘기지 않는다.
++  // 전자책 결제를 다시 열 때는 catalog.js의 ebookFileConfirmed를 true로 바꾸고
++  // payableSkus와 아래 매핑에 SGE-EBOOK-KOI-25 하나만 넣는다.
++  products: Object.freeze({}),
+ 
+   // PayPal (Toss FOREIGN_EASY_PAY, USD) for payment-list items 1 and 3.
+   // Set a positive USD major-unit price before the button can open a charge.
+diff --git a/payment-links.js b/payment-links.js
+index 05e8095..a932176 100644
+--- a/payment-links.js
++++ b/payment-links.js
+@@ -1,5 +1,6 @@
+-// PayPal Business에서 SKU별 Payment Link를 만든 뒤 URL만 입력하세요.
+-// 비어 있는 상품은 결제가 차단되고 준비 중 안내가 표시됩니다.
++// 결제 URL은 비어 있는 동안 청구되지 않는다.
++// SGE-EBOOK-KOI-25는 판매용 PDF(ISBN 979-11-993413-0-2)가 확인되기 전에는 링크를 넣지 않는다.
++// 강의·구독·실물·캠프·멘토링 링크도 판매 전에는 비워 둔다.
+ window.STARGATE_PAYMENTS = {
+   provider: "PayPal",
+   mode: "setup",
+diff --git a/start.html b/start.html
+index fe1c9bb..6e49e8b 100644
+--- a/start.html
++++ b/start.html
+@@ -8,14 +8,39 @@
+ :root{--navy:#0B2A4A;--gold:#C9A227;--ink:#1A2233;--gray:#667085;--line:#E4E7EC;--bg:#F7F9FC;--ok:#16794d}*{box-sizing:border-box}body{margin:0;font-family:'Pretendard','Noto Sans KR','Malgun Gothic',sans-serif;color:var(--ink);background:var(--bg);line-height:1.6}a{text-decoration:none;color:inherit}.top{background:#fff;border-bottom:1px solid var(--line)}.topin{max-width:880px;margin:auto;padding:18px 22px;display:flex;justify-content:space-between;align-items:center}.logo{font-size:20px;font-weight:900;color:var(--navy)}.logo b{color:var(--gold)}.back{font-size:14px;color:var(--navy);font-weight:700}main{max-width:880px;margin:44px auto;padding:0 20px}.intro{text-align:center;margin-bottom:28px}.eyebrow{color:var(--gold);font-weight:900;font-size:13px;letter-spacing:.7px}.intro h1{color:var(--navy);font-size:clamp(28px,5vw,42px);line-height:1.25;margin:8px 0}.intro p{color:var(--gray);margin:0}.panel{background:#fff;border:1px solid var(--line);border-radius:18px;padding:28px;box-shadow:0 14px 38px rgba(11,42,74,.07)}.question{border:0;padding:0;margin:0 0 28px}.question:last-of-type{margin-bottom:18px}.question legend{font-weight:900;color:var(--navy);font-size:17px;margin-bottom:12px}.options{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.option{position:relative}.option input{position:absolute;opacity:0}.option label{display:flex;min-height:68px;align-items:center;justify-content:center;text-align:center;padding:12px;border:1px solid var(--line);border-radius:11px;color:#475467;font-size:14px;font-weight:700;cursor:pointer;transition:.15s}.option input:checked+label{border:2px solid var(--gold);background:#fff9e9;color:var(--navy)}.option label:hover{border-color:var(--gold)}.submit{width:100%;border:0;border-radius:11px;background:var(--gold);color:#3a2e00;padding:15px;font-size:16px;font-weight:900;cursor:pointer}.privacy{font-size:12px;color:var(--gray);text-align:center;margin-top:12px}.result{display:none;margin-top:22px;background:#fff;border:2px solid var(--gold);border-radius:18px;padding:28px}.result.show{display:block}.result-tag{color:var(--ok);font-size:13px;font-weight:900}.result h2{color:var(--navy);margin:6px 0}.result p{color:#475467}.reason{background:#F7F9FC;border-radius:10px;padding:14px;margin:16px 0;font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-block;padding:13px 20px;border-radius:9px;font-weight:900;text-align:center}.btn.primary{background:var(--gold);color:#3a2e00}.btn.secondary{border:1px solid var(--line);color:var(--navy)}@media(max-width:680px){main{margin-top:28px}.panel,.result{padding:20px}.options{grid-template-columns:1fr}.option label{min-height:54px}.actions .btn{width:100%}}
+ </style><link rel="stylesheet" href="/assets/stargate-tokens.css?v=20261017">
+ </head>
+-<body><header class="top"><div class="topin"><a class="logo" href="/">STARGATE<b>EDU</b></a><a class="back" href="/">← 쇼핑몰</a></div></header>
++<body><header class="top"><div class="topin"><a class="logo" href="/">STARGATE<b>EDU</b></a><a class="back" href="/">← 안내로</a></div></header>
+ <main><section class="intro"><div class="eyebrow">FREE · NO SIGN-UP</div><h1>3분 KOI 학습 진단</h1><p>세 가지 질문으로 지금 필요한 시작 경로를 확인합니다.</p></section>
+ <form class="panel" id="diagnosis">
+ <fieldset class="question"><legend>1. 현재 학년은?</legend><div class="options"><div class="option"><input required type="radio" id="grade1" name="grade" value="elementary"><label for="grade1">초등 고학년</label></div><div class="option"><input type="radio" id="grade2" name="grade" value="middle"><label for="grade2">중학생</label></div><div class="option"><input type="radio" id="grade3" name="grade" value="high"><label for="grade3">고등학생 이상</label></div></div></fieldset>
+ <fieldset class="question"><legend>2. C++ 또는 텍스트 코딩 경험은?</legend><div class="options"><div class="option"><input required type="radio" id="exp1" name="experience" value="none"><label for="exp1">처음이에요</label></div><div class="option"><input type="radio" id="exp2" name="experience" value="basic"><label for="exp2">기초 문법 가능</label></div><div class="option"><input type="radio" id="exp3" name="experience" value="advanced"><label for="exp3">알고리즘 풀이 경험</label></div></div></fieldset>
+ <fieldset class="question"><legend>3. 가장 가까운 목표는?</legend><div class="options"><div class="option"><input required type="radio" id="goal1" name="goal" value="explore"><label for="goal1">알고리즘 입문</label></div><div class="option"><input type="radio" id="goal2" name="goal" value="competition"><label for="goal2">KOI·경시 준비</label></div><div class="option"><input type="radio" id="goal3" name="goal" value="plan"><label for="goal3">입시·학습 전략</label></div></div></fieldset>
+-<button class="submit" type="submit">추천 경로 확인</button><p class="privacy">입력값은 서버로 전송하거나 저장하지 않습니다.</p></form>
+-<section class="result" id="result" aria-live="polite"><div class="result-tag">추천 결과</div><h2 id="resultTitle"></h2><p id="resultCopy"></p><div class="reason" id="resultReason"></div><div class="actions"><a class="btn primary" id="resultCta" href="#">추천 상품 보기</a><a class="btn secondary" id="consultCta" href="mailto:support@stargateedu.co.kr?subject=KOI%20무료진단%20후%20상담%20신청">결과와 함께 상담</a></div></section></main>
++<button class="submit" type="submit">추천 경로 확인</button><p class="privacy">세 가지 답은 이 브라우저에만 남고, 서버로는 전송되지 않습니다. 상담 메일을 보내면 그 메일에 답이 남습니다.</p></form>
++<section class="result" id="result" aria-live="polite"><div class="result-tag">추천 결과</div><h2 id="resultTitle"></h2><p id="resultCopy"></p><div class="reason" id="resultReason"></div><div class="actions"><a class="btn primary" id="resultCta" href="/consult.html">이 답으로 상담 내용 만들기</a><a class="btn secondary" id="consultCta" href="mailto:support@stargateedu.co.kr?subject=KOI%20무료진단%20후%20상담%20신청">결과와 함께 상담</a></div></section></main>
+ <script>
+-(function(){"use strict";var form=document.getElementById("diagnosis"),result=document.getElementById("result");var recommendations={guide:{title:"25개 핵심 알고리즘 가이드",copy:"전체 학습 지도를 먼저 잡고 싶은 입문자에게 적합합니다.",reason:"핵심 주제와 학습 순서를 낮은 비용으로 먼저 확인한 뒤 강의 또는 상담을 결정할 수 있습니다.",href:"/checkout.html?sku=SGE-EBOOK-KOI-25"},beginner:{title:"정보올림피아드 입문 (C++ 기초)",copy:"코딩 경험이 적고 체계적인 수업이 필요한 학습자에게 적합합니다.",reason:"C++ 기초부터 시작해 이후 자료구조와 알고리즘으로 넘어가는 경로를 권장합니다.",href:"/#course-koi-intro"},advanced:{title:"정보올림피아드 심화",copy:"기초 문법과 알고리즘 풀이 경험이 있는 대회 준비생에게 적합합니다.",reason:"현재 약점을 확인한 뒤 자료구조·그래프·DP 등 심화 주제를 집중하는 경로입니다.",href:"/#course-koi-advanced"},consult:{title:"입시·대회 전략 컨설팅",copy:"목표와 일정에 맞춘 개인별 로드맵이 먼저 필요한 경우입니다.",reason:"학년, 기존 학습량, 대회 일정에 따라 과정 선택이 달라질 수 있어 1:1 진단을 우선 권장합니다.",href:"/#consult-strategy"}};form.addEventListener("submit",function(event){event.preventDefault();var data=new FormData(form),experience=data.get("experience"),goal=data.get("goal");var key=goal==="plan"?"consult":goal==="competition"&&experience==="advanced"?"advanced":experience==="none"?"beginner":"guide";var pick=recommendations[key];document.getElementById("resultTitle").textContent=pick.title;document.getElementById("resultCopy").textContent=pick.copy;document.getElementById("resultReason").textContent=pick.reason;document.getElementById("resultCta").href=pick.href;document.getElementById("resultCta").textContent=key==="guide"?"전자책 주문 신청":"추천 상품 보기";var summary="학년="+data.get("grade")+", 경험="+experience+", 목표="+goal+", 추천="+pick.title;document.getElementById("consultCta").href="mailto:support@stargateedu.co.kr?subject="+encodeURIComponent("KOI 무료진단 후 상담 신청")+"&body="+encodeURIComponent("진단 결과: "+summary+"\n\n학생 이름:\n연락처:\n상담 희망 내용:");result.classList.add("show");result.scrollIntoView({behavior:"smooth",block:"center"});if(Array.isArray(window.dataLayer)){window.dataLayer.push({event:"diagnosis_complete",recommendation:key});}});})();
++(function(){"use strict";
++var form=document.getElementById("diagnosis"),result=document.getElementById("result");
++var shelves={
++  file:{title:"25개 핵심 알고리즘 가이드",copy:"판매용 PDF가 확인되기 전에는 결제할 수 없습니다.",reason:"진단은 이 파일을 사라는 뜻이 아닙니다. 학습 순서를 문서로 보고 싶다면, 파일이 확인된 뒤에만 결제가 열립니다."},
++  class:{title:"실시간 수업",copy:"개강일, 수강료, 정원, 환불은 아직 확정되지 않았습니다.",reason:"대회 준비가 목표여도 이 페이지에서 반을 등록하지는 않습니다. 수준만 문의할 수 있습니다."},
++  consult:{title:"90분 전략 상담",copy:"안내 금액은 250,000원이고, 메일을 보내도 결제되지 않습니다.",reason:"입시나 대회 순서를 한 장으로 받으려면 일정을 먼저 정합니다. 상담이 전달되기 전에는 정기 멘토링을 열지 않습니다."}
++};
++form.addEventListener("submit",function(event){
++  event.preventDefault();
++  var data=new FormData(form),grade=data.get("grade"),experience=data.get("experience"),goal=data.get("goal");
++  var key=goal==="plan"?"consult":goal==="competition"?"class":"file";
++  var pick=shelves[key];
++  var answers={grade:grade,experience:experience,goal:goal,shelf:key,savedAt:new Date().toISOString()};
++  try{localStorage.setItem("sge-diagnosis",JSON.stringify(answers));}catch(_){}
++  document.getElementById("resultTitle").textContent=pick.title;
++  document.getElementById("resultCopy").textContent=pick.copy;
++  document.getElementById("resultReason").textContent=pick.reason;
++  var query=new URLSearchParams({grade:grade,experience:experience,goal:goal,shelf:key});
++  document.getElementById("resultCta").href="/consult.html?"+query.toString();
++  document.getElementById("resultCta").textContent="이 답으로 상담 내용 만들기";
++  var summary="학년="+grade+", 경험="+experience+", 목표="+goal+", 안내="+pick.title;
++  document.getElementById("consultCta").href="mailto:support@stargateedu.co.kr?subject="+encodeURIComponent("진단 세 가지 답")+"&body="+encodeURIComponent("진단 결과: "+summary+"\n\n이 메일은 결제가 아닙니다.\n이름:\n연락처:\n남기고 싶은 말:");
++  result.classList.add("show");
++  result.scrollIntoView({behavior:"smooth",block:"center"});
++});
++})();
+ </script></body></html>
+diff --git a/store.js b/store.js
+index 7313959..8f95ee4 100644
+--- a/store.js
++++ b/store.js
+@@ -1,6 +1,8 @@
+ (() => {
+   const catalog = window.STARGATE_CATALOG;
+   if (!catalog) return;
++  const payable = new Set(catalog.commerce?.payableSkus || []);
++  const publicPrice = new Set(catalog.commerce?.publicPriceSkus || []);
+   const products = catalog.products;
+   const lang = document.documentElement.lang.toLowerCase().startsWith("en") ? "en" : "ko";
+   const translations = catalog.i18n?.[lang] || {};
+@@ -46,7 +48,7 @@
+     const labels = { request: [copy.request, copy.statusRequest], consultation: [copy.inquire, copy.statusInquiry], external: [copy.external, copy.statusExternal], planned: [copy.plannedAction, copy.statusPlanned] };
+     const [label, status] = labels[mode] || labels.consultation;
+     const direct = mode === "external" && Object.values(catalog.marketplaces || {}).map(m => m.links?.[item.sku]).find(Boolean);
+-    const href = direct || (mode === "request" ? `/checkout.html?sku=${encodeURIComponent(item.sku)}${checkoutSuffix}` : contactLink(item, label));
++    const href = direct || (payable.has(item.sku) ? `/checkout.html?sku=${encodeURIComponent(item.sku)}${checkoutSuffix}` : contactLink(item, label));
+     const extra = direct ? ' target="_blank" rel="noopener noreferrer nofollow sponsored"' : "";
+     const cls = modal ? "btn gold modal-checkout" : "product-buy";
+     return `<div class="sale-status">${status}</div><a class="${cls}" href="${href}"${extra}>${label}</a>`;
+@@ -81,7 +83,8 @@
+     if (!item) return;
+     const modal = ensureModal();
+     const related = (item.related || []).map((relatedId) => `<button type="button" data-detail="${relatedId}">${label(relatedId)}</button>`).join("");
+-    document.getElementById("product-modal-content").innerHTML = `<div class="modal-kicker">${item.type.replaceAll("_", " ")} · ${item.sku}</div><h2 id="product-modal-title">${item.name}</h2><p class="modal-summary">${item.summary}</p><div class="modal-price">${money.format(item.amount)}${item.interval ? ` / ${item.interval === "month" ? copy.month : copy.year}` : ""}</div><h3>${copy.included}</h3><ul>${item.contents.map((content) => `<li>${content}</li>`).join("")}</ul>${related ? `<h3>${copy.related}</h3><div class="modal-related">${related}</div>` : ""}${actionFor(id, item, true)}${marketplaceMarkup(id, item)}`;
++    const price = publicPrice.has(item.sku) ? `<div class="modal-price">${money.format(item.amount)}${item.interval ? ` / ${item.interval === "month" ? copy.month : copy.year}` : ""}</div>` : "";
++    document.getElementById("product-modal-content").innerHTML = `<div class="modal-kicker">${item.type.replaceAll("_", " ")} · ${item.sku}</div><h2 id="product-modal-title">${item.name}</h2><p class="modal-summary">${item.summary}</p>${price}<h3>${copy.included}</h3><ul>${item.contents.map((content) => `<li>${content}</li>`).join("")}</ul>${related ? `<h3>${copy.related}</h3><div class="modal-related">${related}</div>` : ""}${actionFor(id, item, true)}${marketplaceMarkup(id, item)}`;
+     modal.setAttribute("aria-hidden", "false");
+     document.body.classList.add("modal-open");
+     modal.querySelector(".product-modal__close").focus();
+diff --git a/supabase/DIGITAL_DELIVERY_SETUP.md b/supabase/DIGITAL_DELIVERY_SETUP.md
+index 0ec287d..02cea7c 100644
+--- a/supabase/DIGITAL_DELIVERY_SETUP.md
++++ b/supabase/DIGITAL_DELIVERY_SETUP.md
+@@ -5,6 +5,7 @@
+ - 포트원 storeId 비어 있음, mode=test.
+ - 운영 프로젝트 inftexpcnfinglwlrvsj: 연결 계정의 관리 조회 권한 거절.
+ - 판매할 원본 PDF는 Library 검색에서 미확인. 미존재로 단정하지 않음.
++- 그 확인이 끝나기 전에는 스토어프론트 결제 버튼을 열지 않는다. `catalog.js`의 `ebookFileConfirmed`가 false이면 `SGE-EBOOK-KOI-25`는 `payableSkus`에 넣지 않는다.
+ - 실제 결제, 파일 등록, 자동 이메일 발송, 운영 백엔드 배포는 완료되지 않음.
+ 
+ ## 준비한 코드
+diff --git a/sw.js b/sw.js
+index bc422b2..88b3ea6 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,4 +1,4 @@
+-const CACHE = "stargate-edu-shop-v9-20261026";
++const CACHE = "stargate-edu-shop-v10-20261027";
+ const ASSETS = ["/", "/index.html", "/start.html", "/checkout.html", "/success.html", "/cancel.html", "/catalog.js", "/payment-links.js", "/payment-config.js", "/legal.js", "/store.js", "/manifest.json", "/faq.html",
+   "/icons/icon-192.png", "/icons/icon-512.png"];
+ 
+diff --git a/tests/storefront-offer.test.mjs b/tests/storefront-offer.test.mjs
+new file mode 100644
+index 0000000..e537f23
+--- /dev/null
++++ b/tests/storefront-offer.test.mjs
+@@ -0,0 +1,51 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++import vm from "node:vm";
++
++const root = new URL("../", import.meta.url);
++
++function loadCatalog() {
++  const window = {};
++  vm.runInNewContext(readFileSync(new URL("catalog.js", root), "utf8"), { window });
++  return window.STARGATE_CATALOG;
++}
++
++test("ebook payment stays closed until the sale file is confirmed", () => {
++  const catalog = loadCatalog();
++  assert.equal(catalog.commerce.ebookFileConfirmed, false);
++  assert.equal(catalog.commerce.ebookSku, "SGE-EBOOK-KOI-25");
++  assert.deepEqual([...catalog.commerce.payableSkus], []);
++  assert.equal(catalog.availability["ebook-koi-25"], "file_unconfirmed");
++  assert.equal(catalog.products["ebook-koi-25"].sale, "closed-file");
++});
++
++test("only the 90-minute consult keeps a public price", () => {
++  const catalog = loadCatalog();
++  assert.deepEqual([...catalog.commerce.publicPriceSkus], ["SGE-CONSULT-STRATEGY-90"]);
++  for (const [id, item] of Object.entries(catalog.products)) {
++    assert.notEqual(catalog.availability[id], "request");
++    const priced = catalog.commerce.publicPriceSkus.includes(item.sku);
++    assert.equal(priced, item.sale === "consult");
++    if (item.sale !== "consult") assert.equal(item.sale === "closed-file" || item.sale === "withheld", true);
++  }
++  assert.equal(catalog.products["subscription-bank-monthly"].sale, "withheld");
++  assert.equal(catalog.products["subscription-mock-monthly"].sale, "withheld");
++});
++
++test("the browser payment map does not open a charge", () => {
++  const window = {};
++  vm.runInNewContext(readFileSync(new URL("payment-config.js", root), "utf8"), { window });
++  assert.deepEqual({ ...window.STARGATE_TOSS.products }, {});
++  vm.runInNewContext(readFileSync(new URL("payment-links.js", root), "utf8"), { window });
++  assert.equal(window.STARGATE_PAYMENTS.links["SGE-EBOOK-KOI-25"], "");
++});
++
++test("public pages do not advertise unsellable prices or an unconfirmed opening date", () => {
++  const banned = ["11월 8", "2026.11.08", "30,000", "39,000", "49,000", "429,000", "690,600", "384,000", "297,000", "752,000", "281,600", "405,000", "구독하기", "checkout.html?sku="];
++  for (const name of ["index.html", "en.html", "start.html", "consult.html", "faq.html"]) {
++    const html = readFileSync(new URL(name, root), "utf8");
++    for (const phrase of banned) assert.equal(html.includes(phrase), false, `${name} still contains ${phrase}`);
++  }
++  assert.equal(readFileSync(new URL("index.html", root), "utf8").includes("250,000원"), true);
++});
