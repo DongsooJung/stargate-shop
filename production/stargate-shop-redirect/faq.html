@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>고객센터 · 자주 묻는 질문 | STARGATE EDU</title>
+<meta name="description" content="스타게이트에듀 고객센터. 자주 묻는 질문과 이메일 상담 안내. 대치동 KOI·수학 프리미엄 1:1 맞춤 지도.">
+<link rel="canonical" href="https://shop.stargateedu.co.kr/faq.html">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#F4F6F8;
+  --surface:#FFFFFF;
+  --ink:#0E1526;
+  --ink-2:#333C52;
+  --muted:#6B7488;
+  --line:#E3E7ED;
+  --line-2:#EEF1F5;
+  --teal:#0E7C86;
+  --teal-bright:#14B8C4;
+  --teal-soft:#E6F5F6;
+  --brass:#C8963E;
+  --ok:#128A5B;
+  --ok-soft:#E6F4EE;
+  --wait:#B4791C;
+  --wait-soft:#FBF2E1;
+  --radius:14px;
+  --radius-sm:9px;
+  --shadow:0 1px 2px rgba(14,21,38,.04), 0 8px 28px rgba(14,21,38,.06);
+  --shadow-lg:0 24px 60px rgba(14,21,38,.16);
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,system-ui,"Malgun Gothic",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;font-family:var(--font);background:var(--canvas);color:var(--ink);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;line-height:1.6;
+}
+a{color:inherit}
+button{font-family:inherit;cursor:pointer}
+.wrap{max-width:920px;margin:0 auto;padding:0 22px}
+
+/* ---------- Header ---------- */
+.site-head{
+  position:sticky;top:0;z-index:40;background:rgba(244,246,248,.82);
+  backdrop-filter:saturate(160%) blur(12px);border-bottom:1px solid var(--line);
+}
+.site-head__inner{display:flex;align-items:center;justify-content:space-between;height:64px}
+.brand{display:flex;align-items:center;gap:9px;text-decoration:none;letter-spacing:.14em}
+.brand__mark{font-weight:800;font-size:15px;color:var(--ink)}
+.brand__star{color:var(--brass);font-size:13px;transform:translateY(-1px)}
+.brand__sub{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.22em}
+.nav{display:flex;gap:4px}
+.nav a{
+  font-size:13.5px;font-weight:600;color:var(--ink-2);text-decoration:none;
+  padding:8px 13px;border-radius:999px;transition:background .15s,color .15s;
+}
+.nav a:hover{background:var(--teal-soft);color:var(--teal)}
+
+/* ---------- Hero ---------- */
+.hero{position:relative;padding:56px 0 40px;overflow:hidden}
+.hero__gate{
+  position:absolute;top:-120px;left:50%;transform:translateX(-50%);
+  width:520px;height:520px;border-radius:50%;
+  border:1.5px solid rgba(14,124,134,.16);
+  pointer-events:none;
+}
+.hero__gate::after{
+  content:"";position:absolute;inset:26px;border-radius:50%;
+  border:1px dashed rgba(20,184,196,.28);
+}
+.hero__eyebrow{
+  font-family:var(--mono);font-size:12px;letter-spacing:.24em;color:var(--teal);
+  text-transform:uppercase;margin:0 0 14px;
+}
+.hero h1{
+  font-size:clamp(30px,5.4vw,46px);line-height:1.12;letter-spacing:-.02em;
+  font-weight:800;margin:0 0 16px;
+}
+.hero h1 .accent{
+  background:linear-gradient(120deg,var(--teal),var(--teal-bright));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero p{font-size:16.5px;color:var(--ink-2);max-width:560px;margin:0}
+.hero__note{
+  margin-top:22px;display:inline-flex;align-items:center;gap:8px;
+  font-size:13px;color:var(--muted);font-family:var(--mono);letter-spacing:.02em;
+}
+.hero__dot{width:6px;height:6px;border-radius:50%;background:var(--teal-bright)}
+
+/* section shell */
+.section{padding:14px 0 30px}
+.section__head{display:flex;align-items:baseline;gap:12px;margin:34px 0 20px}
+.section__num{font-family:var(--mono);font-size:12px;color:var(--teal);letter-spacing:.1em;padding-top:5px}
+.section__title{font-size:22px;font-weight:800;letter-spacing:-.01em;margin:0}
+.section__desc{font-size:13.5px;color:var(--muted);margin:2px 0 0}
+
+/* ---------- Filter chips ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.chip{
+  border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
+  font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;
+  transition:all .15s;
+}
+.chip:hover{border-color:var(--teal);color:var(--teal)}
+.chip.is-active{background:var(--ink);border-color:var(--ink);color:#fff}
+
+/* ---------- FAQ accordion ---------- */
+.faq{display:flex;flex-direction:column;gap:10px}
+.faq__item{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;transition:border-color .15s;
+}
+.faq__item.is-open{border-color:var(--teal)}
+.faq__q{
+  width:100%;text-align:left;background:none;border:0;padding:18px 20px;
+  display:flex;align-items:flex-start;gap:14px;
+}
+.tag{
+  font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.02em;
+  padding:3px 8px;border-radius:6px;background:var(--teal-soft);color:var(--teal);
+  white-space:nowrap;flex-shrink:0;margin-top:1px;
+}
+.faq__qtext{font-size:15.5px;font-weight:700;color:var(--ink);flex:1;line-height:1.5}
+.faq__icon{
+  flex-shrink:0;width:22px;height:22px;position:relative;margin-top:2px;color:var(--muted);
+  transition:transform .25s;
+}
+.faq__icon::before,.faq__icon::after{
+  content:"";position:absolute;background:currentColor;border-radius:2px;
+}
+.faq__icon::before{top:10px;left:4px;width:14px;height:2px}
+.faq__icon::after{top:4px;left:10px;width:2px;height:14px;transition:opacity .2s}
+.faq__item.is-open .faq__icon{color:var(--teal)}
+.faq__item.is-open .faq__icon::after{opacity:0}
+.faq__a{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.faq__a-inner{padding:0 20px 20px 62px;font-size:14.5px;color:var(--ink-2);line-height:1.7}
+@media (max-width:560px){.faq__a-inner{padding-left:20px}}
+
+/* ---------- Board ---------- */
+.board-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.board-count{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.board-count b{color:var(--ink)}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;border:0;border-radius:10px;
+  font-size:14px;font-weight:700;padding:11px 18px;transition:transform .12s,box-shadow .15s,background .15s;
+}
+.btn--primary{background:linear-gradient(120deg,var(--teal),var(--teal-bright));color:#fff;box-shadow:0 6px 16px rgba(14,124,134,.25)}
+.btn--primary:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(14,124,134,.32)}
+.btn--ghost{background:var(--surface);border:1px solid var(--line);color:var(--ink-2)}
+.btn--ghost:hover{border-color:var(--teal);color:var(--teal)}
+.btn--sm{padding:8px 14px;font-size:13px}
+.btn--block{width:100%;justify-content:center}
+
+.board{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.post{border-top:1px solid var(--line-2)}
+.post:first-child{border-top:0}
+.post__row{
+  width:100%;text-align:left;background:none;border:0;padding:16px 20px;
+  display:flex;align-items:center;gap:14px;transition:background .12s;
+}
+.post__row:hover{background:#FAFBFC}
+.post__title{flex:1;min-width:0}
+.post__title h3{font-size:15px;font-weight:700;margin:0;display:flex;align-items:center;gap:7px}
+.post__title h3 .lock{color:var(--muted);font-size:13px}
+.post__meta{display:flex;gap:10px;margin-top:5px;font-size:12.5px;color:var(--muted)}
+.post__meta .mono{font-family:var(--mono)}
+.status{
+  font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:999px;white-space:nowrap;flex-shrink:0;
+}
+.status--ok{background:var(--ok-soft);color:var(--ok)}
+.status--wait{background:var(--wait-soft);color:var(--wait)}
+.post__body{max-height:0;overflow:hidden;transition:max-height .3s ease;background:#FAFBFC}
+.post__body-inner{padding:4px 20px 20px}
+.post__q,.post__answer{border-radius:var(--radius-sm);padding:14px 16px;font-size:14px;line-height:1.7}
+.post__q{background:#fff;border:1px solid var(--line);color:var(--ink-2);white-space:pre-wrap}
+.post__answer{background:var(--teal-soft);border:1px solid rgba(14,124,134,.18);color:var(--ink);margin-top:10px;white-space:pre-wrap}
+.post__answer-label{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--teal);display:block;margin-bottom:6px}
+.post__locked{padding:16px;text-align:center;color:var(--muted);font-size:14px}
+.pw-inline{display:flex;gap:8px;justify-content:center;margin-top:10px}
+.pw-inline input{width:120px;text-align:center;letter-spacing:.3em}
+.empty{padding:44px 20px;text-align:center;color:var(--muted)}
+.empty__g{font-size:26px;margin-bottom:8px;opacity:.5}
+
+/* admin answer box (local convenience) */
+.admin-box{margin-top:12px;border:1px dashed var(--line);border-radius:var(--radius-sm);padding:12px;background:#fff}
+.admin-box textarea{min-height:70px}
+.admin-badge{font-family:var(--mono);font-size:11px;color:var(--brass);margin-left:8px}
+
+/* ---------- Form fields ---------- */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:6px}
+.field .req{color:var(--teal);margin-left:2px}
+input,select,textarea{
+  width:100%;font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;padding:11px 13px;transition:border-color .15s,box-shadow .15s;
+}
+textarea{resize:vertical;line-height:1.6}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-soft)}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.check{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink-2)}
+.check input{width:auto}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+
+/* ---------- Modal ---------- */
+.modal{position:fixed;inset:0;z-index:60;display:none;align-items:flex-start;justify-content:center;padding:24px}
+.modal.is-open{display:flex}
+.modal__scrim{position:absolute;inset:0;background:rgba(14,21,38,.5);backdrop-filter:blur(3px)}
+.modal__card{
+  position:relative;background:var(--surface);border-radius:20px;box-shadow:var(--shadow-lg);
+  width:100%;max-width:520px;margin-top:40px;max-height:calc(100vh - 64px);overflow-y:auto;
+  animation:pop .22s cubic-bezier(.2,.9,.3,1.2);
+}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.modal__head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--line-2)}
+.modal__head h3{margin:0;font-size:18px;font-weight:800}
+.modal__x{background:none;border:0;font-size:22px;color:var(--muted);width:34px;height:34px;border-radius:9px}
+.modal__x:hover{background:var(--line-2);color:var(--ink)}
+.modal__body{padding:22px 24px 24px}
+
+/* ---------- Footer ---------- */
+.site-foot{border-top:1px solid var(--line);margin-top:48px;padding:34px 0 46px;color:var(--muted)}
+.foot-grid{display:flex;flex-wrap:wrap;justify-content:space-between;gap:24px}
+.foot-brand .brand__mark{font-size:14px}
+.foot-info{font-size:12.5px;line-height:1.9}
+.foot-info .mono{font-family:var(--mono)}
+.foot-admin{background:none;border:0;color:var(--line);font-size:11px;font-family:var(--mono);padding:4px;margin-top:12px}
+.foot-admin:hover{color:var(--muted)}
+
+.toast{
+  position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;
+  box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:all .3s;z-index:80;
+}
+.toast.is-show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important;scroll-behavior:auto !important}
+}
+@media (max-width:560px){
+  .nav a:first-child{display:none}
+  .row-2{grid-template-columns:1fr}
+  .hero{padding:40px 0 30px}
+}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+</style>
+<link rel="stylesheet" href="/assets/stargate-tokens.css?v=20261017">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap site-head__inner">
+    <a class="brand" href="/">
+      <span class="brand__mark">STARGATE <span class="brand__star">✦</span></span>
+      <span class="brand__sub">EDU</span>
+    </a>
+    <nav class="nav" aria-label="고객센터 메뉴">
+      <a href="#faq">자주 묻는 질문</a>
+      <a href="/consult.html">수강 상담</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <span class="hero__gate" aria-hidden="true"></span>
+    <div class="wrap">
+      <p class="hero__eyebrow">Customer Center</p>
+      <h1>궁금한 점을<br><span class="accent">먼저 확인</span>하세요.</h1>
+      <p>대치동 KOI·수학 프리미엄 1:1 지도에 대해 자주 묻는 질문을 정리했습니다. 답을 찾지 못하셨다면 이메일로 문의해 주세요. 확인 후 순차적으로 회신드립니다.</p>
+      <span class="hero__note"><span class="hero__dot"></span> ZOOM 실시간 · 전자책 · 1:1 전략 상담</span>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px"><a class="btn btn--primary" href="/consult.html">수강 상담 내용 준비</a><a class="btn btn--ghost" href="/#offers">지금 안내</a></div>
+    </div>
+  </section>
+
+  <!-- ===== FAQ ===== -->
+  <section class="section wrap" id="faq">
+    <div class="section__head">
+      <span class="section__num">01</span>
+      <div>
+        <h2 class="section__title">자주 묻는 질문</h2>
+        <p class="section__desc">카테고리를 눌러 원하는 주제만 볼 수 있습니다.</p>
+      </div>
+    </div>
+    <div class="chips" id="faqChips" role="tablist"></div>
+    <div class="faq" id="faqList"></div>
+  </section>
+
+<section class="section wrap" id="contact"><div class="section__head"><span class="section__num">02</span><div><h2 class="section__title">상담을 준비하세요</h2><p class="section__desc">학년·경험·목표를 선택해 문의 내용을 만들 수 있습니다. 이 페이지에는 문의가 접수되지 않습니다.</p></div></div><div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn btn--primary" href="/consult.html">수강 상담 내용 준비</a><a class="btn btn--ghost" href="/refund.html">환불정책 확인</a><a class="btn btn--ghost" href="/#offers">지금 안내</a></div></section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <div class="brand__mark">STARGATE <span class="brand__star">✦</span> EDU</div>
+      <div class="foot-info" style="margin-top:10px">대치동 KOI·수학 프리미엄 1:1 맞춤 지도</div>
+      <button class="foot-admin" id="adminToggle" title="관리자 모드" style="display:none" aria-hidden="true" tabindex="-1">· admin</button>
+    </div>
+    <div class="foot-info">
+      상호 <b style="color:var(--ink-2)">주식회사 별의문</b><br>
+      사업자등록번호 <span class="mono">848-86-03835</span><br>
+      주소 서울 강남구 강남대로112길 47<br>
+      대표 전화 <a class="mono" href="tel:+827080278225">070-8027-8225</a><br>
+      결제 전화 <a class="mono" href="tel:+821095878225">010-9587-8225</a><br>
+      문의 <a class="mono" href="mailto:support@stargateedu.co.kr">support@stargateedu.co.kr</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const FAQ=[{"cat":"상담","q":"상담과 수강 신청은 어떻게 하나요?","a":"상담 준비 페이지에서 학년·코딩 경험·목표를 선택해 문의 내용을 만들 수 있습니다. 내용을 복사해 카카오톡으로 보내거나 이메일 초안을 열어 직접 발송해 주세요. 확인 후 순차적으로 회신드립니다."},{"cat":"수업방식","q":"실시간 수업 개강일이 정해져 있나요?","a":"아닙니다. 대상, 수강료, 정원, 환불이 확정되기 전에는 개강일을 적지 않습니다."},{"cat":"수업방식","q":"온라인 수업은 어떻게 진행되나요?","a":"개강이 확정되면 수업은 ZOOM으로 진행할 예정입니다. 지금은 반, 시간, 수강료가 없습니다."},{"cat":"KOI","q":"코딩이 처음인데 시작할 수 있나요?","a":"무료 진단 또는 상담을 통해 현재 수준을 확인하고 적합한 입문 경로와 수강 가능 여부를 안내합니다. C++ 경험과 현재 학년을 함께 알려주세요."},{"cat":"KOI","q":"어떤 내용을 공부하나요?","a":"C++ 입문부터 자료구조·그래프·동적계획법 등 알고리즘 학습 경로를 안내합니다. 실제 반의 진도와 선수학습은 상담에서 확인해 주세요."},{"cat":"수학","q":"수학 상담에는 무엇을 준비하면 되나요?","a":"현재 학년, 학습 중인 단원, 어려운 유형, 내신·심화·경시 등 목표를 알려주세요. 지도 가능 범위와 수업 조건을 먼저 확인합니다."},{"cat":"상담","q":"강사 이력을 알려주세요.","a":"정동수 대표 강사는 서울대학교 공과대학 학부를 졸업하고, 서울대학교 건설환경공학부 스마트도시공학 박사과정을 수료했습니다. 수학·KOI 교육을 운영하고 있습니다."},{"cat":"수강료","q":"대표 상품 가격은 얼마인가요?","a":"이 페이지에 금액이 있는 안내는 90분 전략 상담 250,000원뿐입니다. 전자책, 실시간 수업, 강의, 문제은행, 교재는 결제 금액이 없습니다."},{"cat":"주문","q":"전자책은 어떻게 주문하고 받나요?","a":"판매용 PDF가 확인되기 전에는 결제 버튼이 없습니다. 메일을 보내도 결제되거나 파일이 발송되지 않습니다."},{"cat":"주문","q":"카드 결제와 자동 다운로드가 가능한가요?","a":"카드 결제와 자동 다운로드는 연결되어 있지 않습니다. 전자책 결제는 판매 파일이 확인된 뒤에만 열립니다."},{"cat":"수강료","q":"변경·취소·환불은 어디로 문의하나요?","a":"쇼핑몰 환불정책을 확인하고 support@stargateedu.co.kr로 상품명과 신청 내용을 보내주세요. 개별 주문 조건과 적용 기준을 확인해 안내합니다."}];
+const cats=["전체",...new Set(FAQ.map(x=>x.cat))];let selected="전체";
+const esc=s=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function render(){document.getElementById("faqChips").innerHTML=cats.map(cat=>'<button type="button" class="chip'+(cat===selected?' is-active':'')+'" data-category="'+esc(cat)+'" aria-pressed="'+(cat===selected)+'">'+esc(cat)+'</button>').join("");document.getElementById("faqList").innerHTML=FAQ.filter(x=>selected==="전체"||x.cat===selected).map(x=>'<details style="padding:18px;border-bottom:1px solid var(--line)"><summary style="cursor:pointer;font-weight:700">['+esc(x.cat)+'] '+esc(x.q)+'</summary><p style="margin-top:12px;color:var(--ink-2)">'+esc(x.a)+'</p></details>').join("");}
+document.getElementById("faqChips").removeAttribute("role");
+document.getElementById("faqChips").addEventListener("click",e=>{const b=e.target.closest("[data-category]");if(b){selected=b.dataset.category;render();}});render();
+</script></body></html>
